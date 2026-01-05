@@ -517,11 +517,20 @@ const Meetings = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 pt-2 pb-4">
-        {viewMode === 'calendar' ? <MeetingsCalendarView meetings={filteredMeetings} onMeetingClick={meeting => {
-        setEditingMeeting(meeting);
-        setShowModal(true);
-      }} onMeetingUpdated={fetchMeetings} /> : <div className="space-y-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col">
+        {viewMode === 'calendar' ? (
+          <div className="flex-1 min-h-0 overflow-auto">
+            <MeetingsCalendarView
+              meetings={filteredMeetings}
+              onMeetingClick={(meeting) => {
+                setEditingMeeting(meeting);
+                setShowModal(true);
+              }}
+              onMeetingUpdated={fetchMeetings}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 flex-1 min-h-0">
             {/* Search and Bulk Actions */}
             <div className="flex items-center gap-4 flex-wrap">
               <div className="relative w-64">
@@ -578,7 +587,7 @@ const Meetings = () => {
 
             {/* Table */}
             <Card className="flex-1 min-h-0 flex flex-col">
-              <div className="relative overflow-auto flex-1">
+              <div className="relative overflow-auto flex-1 min-h-0">
               <Table>
                 <TableHeader>
                   <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
@@ -767,7 +776,8 @@ const Meetings = () => {
                 </div>
               </div>
             </Card>
-          </div>}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
