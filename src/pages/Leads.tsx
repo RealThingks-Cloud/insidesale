@@ -11,6 +11,7 @@ import { BulkEmailModal, BulkEmailRecipient } from "@/components/BulkEmailModal"
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
 
+// Leads page component
 const Leads = () => {
   const [searchParams] = useSearchParams();
   const initialStatus = searchParams.get('status') || 'all';
