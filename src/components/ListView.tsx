@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Deal, DealStage, DEAL_STAGES, STAGE_COLORS } from "@/types/deal";
-import { Search, Filter, X, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Briefcase } from "lucide-react";
+import { Search, Filter, X, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Briefcase, Edit3 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RowActionsDropdown, Edit, Trash2, CheckSquare } from "./RowActionsDropdown";
 import { format } from "date-fns";
@@ -690,24 +690,24 @@ export const ListView = ({
                       }}
                     >
                       {column.field === 'project_name' || column.field === 'deal_name' ? (
-                        <div className="flex items-center gap-1">
+                        <div className="group flex items-center gap-1">
                           <button 
                             onClick={() => onDealClick(deal)}
-                            className="text-primary hover:underline font-medium text-left truncate flex-shrink-0"
+                            className="text-primary hover:underline font-medium text-left truncate"
                             title={deal[column.field as keyof Deal]?.toString() || 'Click to view'}
                           >
                             <HighlightedText text={deal[column.field as keyof Deal]?.toString() || '-'} highlight={searchTerm} />
                           </button>
-                          <div className="flex-1 min-w-0">
-                            <InlineEditCell
-                              value={deal[column.field as keyof Deal]}
-                              field={column.field}
-                              dealId={deal.id}
-                              onSave={handleInlineEdit}
-                              type="text"
-                              currencyType={deal.currency_type}
-                            />
-                          </div>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-0.5 hover:bg-muted rounded"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDealClick(deal);
+                            }}
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3 h-3 text-muted-foreground" />
+                          </button>
                         </div>
                       ) : (
                         <InlineEditCell
