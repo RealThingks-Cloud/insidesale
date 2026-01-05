@@ -14,12 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, Building2, Pencil } from "lucide-react";
-import { RowActionsDropdown, Edit, Trash2, Mail } from "./RowActionsDropdown";
+import { RowActionsDropdown, Edit, Trash2 } from "./RowActionsDropdown";
 import { AccountModal } from "./AccountModal";
 import { AccountColumnCustomizer, AccountColumnConfig, defaultAccountColumns } from "./AccountColumnCustomizer";
 import { AccountStatusFilter } from "./AccountStatusFilter";
 import { AccountDeleteConfirmDialog } from "./AccountDeleteConfirmDialog";
-import { SendEmailModal, EmailRecipient } from "./SendEmailModal";
 import { AccountDetailModal } from "./accounts/AccountDetailModal";
 import { HighlightedText } from "./shared/HighlightedText";
 import { getAccountStatusColor } from "@/utils/accountStatusUtils";
@@ -30,7 +29,6 @@ import { useQuery } from "@tanstack/react-query";
 // Export ref interface for parent component
 export interface AccountTableRef {
   handleBulkDelete: () => Promise<void>;
-  getSelectedAccountsForEmail: () => { id: string; name: string; email?: string; type: 'lead' | 'contact' | 'account' }[];
 }
 export interface Account {
   id: string;
@@ -148,8 +146,6 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [emailRecipient, setEmailRecipient] = useState<EmailRecipient | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [viewingAccount, setViewingAccount] = useState<Account | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -173,22 +169,9 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
     }
   }, [viewId, accounts, setSearchParams]);
 
-  // Get selected accounts formatted for bulk email
-  const getSelectedAccountsForEmail = () => {
-    return accounts
-      .filter(a => selectedAccounts.includes(a.id))
-      .map(a => ({
-        id: a.id,
-        name: a.company_name,
-        email: a.email || undefined,
-        type: 'account' as const
-      }));
-  };
-
-  // Expose handleBulkDelete and getSelectedAccountsForEmail to parent via ref
+  // Expose handleBulkDelete to parent via ref
   useImperativeHandle(ref, () => ({
-    handleBulkDelete,
-    getSelectedAccountsForEmail
+    handleBulkDelete
   }), [selectedAccounts, accounts]);
 
   // Fetch all profiles for owner dropdown
@@ -646,18 +629,6 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                               setShowModal(true);
                             }
                           },
-                          ...(account.email ? [{
-                            label: "Send Email",
-                            icon: <Mail className="w-4 h-4" />,
-                            onClick: () => {
-                              setEmailRecipient({
-                                name: account.company_name,
-                                email: account.email,
-                                company_name: account.company_name
-                              });
-                              setEmailModalOpen(true);
-                            }
-                          }] : []),
                           {
                             label: "Delete",
                             icon: <Trash2 className="w-4 h-4" />,
@@ -721,7 +692,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
       setShowModal(true);
     }} />
 
-      <SendEmailModal open={emailModalOpen} onOpenChange={setEmailModalOpen} recipient={emailRecipient} />
+      
     </div>;
 });
 AccountTable.displayName = "AccountTable";

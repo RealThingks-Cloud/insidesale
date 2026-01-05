@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EntityEmailHistory } from "@/components/shared/EntityEmailHistory";
-import { SendEmailModal } from "@/components/SendEmailModal";
 import { RelatedTasksSection } from "@/components/shared/RelatedTasksSection";
 import { 
   Building2, 
@@ -16,17 +12,10 @@ import {
   MapPin, 
   Factory,
   Clock,
-  Users,
-  Briefcase,
   Plus,
   ExternalLink,
-  Loader2,
   Mail,
-  Send,
-  History,
   Pencil,
-  CalendarPlus,
-  CheckSquare,
   ListTodo
 } from "lucide-react";
 import { format } from "date-fns";
@@ -60,9 +49,7 @@ interface AccountDetailModalProps {
 }
 
 export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEdit }: AccountDetailModalProps) => {
-  const { toast } = useToast();
   const [showActivityLog, setShowActivityLog] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   if (!account) return null;
@@ -90,17 +77,6 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {account.email && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowEmailModal(true)}
-                    className="gap-2"
-                  >
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </Button>
-                )}
                 {onEdit && (
                   <Button
                     variant="outline"
@@ -126,14 +102,13 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
           </DialogHeader>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="tasks" className="flex items-center gap-1">
                 <ListTodo className="h-3 w-3" />
                 Tasks
               </TabsTrigger>
               <TabsTrigger value="timeline">Activity</TabsTrigger>
-              <TabsTrigger value="emails">Emails</TabsTrigger>
               <TabsTrigger value="associations">Related</TabsTrigger>
             </TabsList>
 
@@ -148,12 +123,7 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
                     {account.email && (
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <button 
-                          onClick={() => setShowEmailModal(true)}
-                          className="text-primary hover:underline truncate"
-                        >
-                          {account.email}
-                        </button>
+                        <span className="truncate">{account.email}</span>
                       </div>
                     )}
                     {account.phone && (
@@ -241,12 +211,6 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
               <AccountActivityTimeline key={refreshKey} accountId={account.id} />
             </TabsContent>
 
-            <TabsContent value="emails" className="mt-4">
-              <div className="space-y-4">
-                <h3 className="font-medium">Email History</h3>
-                <EntityEmailHistory entityType="account" entityId={account.id} />
-              </div>
-            </TabsContent>
 
             <TabsContent value="associations" className="mt-4">
               <AccountAssociations 
@@ -265,15 +229,6 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
         onSuccess={handleActivityLogged}
       />
 
-      <SendEmailModal
-        open={showEmailModal}
-        onOpenChange={setShowEmailModal}
-        recipient={account.email ? {
-          name: account.company_name,
-          email: account.email,
-          company_name: account.company_name
-        } : null}
-      />
     </>
   );
 };
