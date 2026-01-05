@@ -239,10 +239,8 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
-  #root {
-    min-height: 100vh;
-    width: 100%;
-    zoom: 0.9;
+  html {
+    font-size: 90%;
   }
 
   body {
