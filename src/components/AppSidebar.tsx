@@ -177,9 +177,9 @@ export function AppSidebar({ isFixed = false, isOpen, onToggle }: AppSidebarProp
         isFixed ? 'relative' : ''
       }`}
       style={{ 
-        width: sidebarOpen ? '200px' : '64px',
-        minWidth: sidebarOpen ? '200px' : '64px',
-        maxWidth: sidebarOpen ? '200px' : '64px'
+        width: sidebarOpen ? '12.5rem' : '4rem',
+        minWidth: sidebarOpen ? '12.5rem' : '4rem',
+        maxWidth: sidebarOpen ? '12.5rem' : '4rem'
       }}
     >
       {/* Header */}

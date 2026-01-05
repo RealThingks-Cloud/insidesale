@@ -48,9 +48,9 @@ const FixedSidebarLayout = ({ children }: { children: React.ReactNode }) => {
       <main 
         className="flex-1 bg-background min-h-screen"
         style={{ 
-          marginLeft: sidebarOpen ? '200px' : '64px',
+          marginLeft: sidebarOpen ? '12.5rem' : '4rem',
           transition: 'margin-left 300ms ease-in-out',
-          width: `calc(100vw - ${sidebarOpen ? '200px' : '64px'})`
+          width: `calc(100vw - ${sidebarOpen ? '12.5rem' : '4rem'})`
         }}
       >
         <div className="w-full h-full overflow-auto">
