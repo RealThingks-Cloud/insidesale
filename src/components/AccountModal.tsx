@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { X, ChevronDown } from "lucide-react";
 import { Account } from "./AccountTable";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
+import { regions, regionCountries } from "@/utils/countryData";
 
 const accountSchema = z.object({
   company_name: z.string()
@@ -51,17 +52,6 @@ interface AccountModalProps {
   account?: Account | null;
   onSuccess: () => void;
 }
-
-const regions = ["EU", "US", "ASIA", "LATAM", "MEA", "Other"];
-
-const regionCountries: Record<string, string[]> = {
-  EU: ["Germany", "France", "UK", "Italy", "Spain", "Netherlands", "Sweden", "Poland", "Belgium", "Austria", "Switzerland", "Other EU"],
-  US: ["United States", "Canada", "Mexico"],
-  ASIA: ["Japan", "China", "India", "South Korea", "Singapore", "Taiwan", "Thailand", "Vietnam", "Malaysia", "Indonesia", "Other Asia"],
-  LATAM: ["Brazil", "Argentina", "Chile", "Colombia", "Peru", "Other LATAM"],
-  MEA: ["UAE", "Saudi Arabia", "South Africa", "Israel", "Turkey", "Egypt", "Other MEA"],
-  Other: ["Other"]
-};
 
 const statuses = ["New", "Working", "Warm", "Hot", "Nurture", "Closed-Won", "Closed-Lost"];
 
@@ -194,6 +184,25 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
           variant: "destructive",
         });
         return;
+      }
+
+      // Check for exact email duplicate (blocking)
+      if (data.email && !account) {
+        const { data: existingAccount } = await supabase
+          .from('accounts')
+          .select('id, company_name')
+          .ilike('email', data.email)
+          .maybeSingle();
+        
+        if (existingAccount) {
+          toast({
+            title: "Duplicate Email",
+            description: `This email already exists in Accounts (${existingAccount.company_name}). Please use a different email.`,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       // Only set account_owner on create, not update

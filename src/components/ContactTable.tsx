@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, User, CalendarPlus, Pencil } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, User, CalendarPlus, Pencil, CheckSquare } from "lucide-react";
 import { RowActionsDropdown, Edit, Trash2, Mail, UserPlus } from "./RowActionsDropdown";
 import { ContactDeleteConfirmDialog } from "./ContactDeleteConfirmDialog";
 import { ContactSegmentFilter } from "./ContactSegmentFilter";
@@ -23,9 +23,11 @@ import { ContactDetailModal } from "./contacts/ContactDetailModal";
 import { AccountDetailModalById } from "./accounts/AccountDetailModalById";
 import { SendEmailModal } from "./SendEmailModal";
 import { MeetingModal } from "./MeetingModal";
+import { TaskModal } from "./tasks/TaskModal";
 import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
+import { useTasks } from "@/hooks/useTasks";
 import { useQuery } from "@tanstack/react-query";
 
 // Export ref interface for parent component
@@ -193,6 +195,15 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [meetingContact, setMeetingContact] = useState<Contact | null>(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskContactId, setTaskContactId] = useState<string | null>(null);
+
+  const { createTask } = useTasks();
+
+  const handleCreateTask = (contact: Contact) => {
+    setTaskContactId(contact.id);
+    setTaskModalOpen(true);
+  };
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -828,7 +839,12 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                               onClick: () => {
                                 setMeetingContact(contact);
                                 setMeetingModalOpen(true);
-                              },
+                              }
+                            },
+                            {
+                              label: "Create Task",
+                              icon: <CheckSquare className="w-4 h-4" />,
+                              onClick: () => handleCreateTask(contact),
                               separator: true
                             },
                             {
@@ -974,6 +990,14 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
           setMeetingContact(null);
           fetchContacts();
         }}
+      />
+
+      {/* Task Modal */}
+      <TaskModal
+        open={taskModalOpen}
+        onOpenChange={setTaskModalOpen}
+        onSubmit={createTask}
+        context={taskContactId ? { module: 'contacts', recordId: taskContactId, locked: true } : undefined}
       />
     </div>
   );

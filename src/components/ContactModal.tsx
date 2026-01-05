@@ -229,6 +229,25 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         return;
       }
 
+      // Check for exact email duplicate (blocking)
+      if (data.email && !contact) {
+        const { data: existingContact } = await supabase
+          .from('contacts')
+          .select('id, contact_name')
+          .ilike('email', data.email)
+          .maybeSingle();
+        
+        if (existingContact) {
+          toast({
+            title: "Duplicate Email",
+            description: `This email already exists in Contacts (${existingContact.contact_name}). Please use a different email.`,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       // Get company_name from selected account
       const selectedAccount = accounts.find(acc => acc.id === data.account_id);
       

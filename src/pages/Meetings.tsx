@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Video, Trash2, Edit, Calendar, ArrowUpDown, ArrowUp, ArrowDown, List, CalendarDays, CheckCircle2, AlertCircle, UserX, CalendarClock, User, Columns, Upload, Download, X, Eye } from "lucide-react";
+import { Plus, Search, Video, Trash2, Edit, Calendar, ArrowUpDown, ArrowUp, ArrowDown, List, CalendarDays, CheckCircle2, AlertCircle, UserX, CalendarClock, User, Columns, Upload, Download, X, Eye, CheckSquare } from "lucide-react";
 import { RowActionsDropdown } from "@/components/RowActionsDropdown";
 import { HighlightedText } from "@/components/shared/HighlightedText";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -25,6 +25,8 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { getMeetingStatus } from "@/utils/meetingStatus";
 import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
+import { TaskModal } from "@/components/tasks/TaskModal";
+import { useTasks } from "@/hooks/useTasks";
 
 type SortColumn = 'subject' | 'date' | 'time' | 'lead_contact' | 'status' | null;
 type SortDirection = 'asc' | 'desc';
@@ -85,6 +87,15 @@ const Meetings = () => {
   // Column customizer state
   const [showColumnCustomizer, setShowColumnCustomizer] = useState(false);
   const [columns, setColumns] = useState<MeetingColumnConfig[]>(defaultMeetingColumns);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskMeetingId, setTaskMeetingId] = useState<string | null>(null);
+
+  const { createTask } = useTasks();
+
+  const handleCreateTask = (meeting: Meeting) => {
+    setTaskMeetingId(meeting.id);
+    setTaskModalOpen(true);
+  };
 
   // Get owner parameter from URL - "me" means filter by current user
   const ownerParam = searchParams.get('owner');
@@ -738,6 +749,11 @@ const Meetings = () => {
                                   }
                                 },
                                 {
+                                  label: "Create Task",
+                                  icon: <CheckSquare className="w-4 h-4" />,
+                                  onClick: () => handleCreateTask(meeting)
+                                },
+                                {
                                   label: "Delete",
                                   icon: <Trash2 className="w-4 h-4" />,
                                   onClick: () => {
@@ -847,6 +863,14 @@ const Meetings = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Task Modal */}
+      <TaskModal
+        open={taskModalOpen}
+        onOpenChange={setTaskModalOpen}
+        onSubmit={createTask}
+        context={taskMeetingId ? { module: 'meetings', recordId: taskMeetingId, locked: true } : undefined}
+      />
     </div>;
 };
 export default Meetings;

@@ -196,6 +196,25 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         return;
       }
 
+      // Check for exact email duplicate (blocking)
+      if (data.email && !lead) {
+        const { data: existingLead } = await supabase
+          .from('leads')
+          .select('id, lead_name')
+          .ilike('email', data.email)
+          .maybeSingle();
+        
+        if (existingLead) {
+          toast({
+            title: "Duplicate Email",
+            description: `This email already exists in Leads (${existingLead.lead_name}). Please use a different email.`,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       // Prepare base data without created_by - that's set only on creation
       const baseLeadData = {
         lead_name: data.lead_name,
@@ -229,8 +248,6 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         }
         
         console.log('Lead updated successfully:', updatedLead);
-
-        if (error) throw error;
 
         await logUpdate('leads', lead.id, baseLeadData, lead);
 

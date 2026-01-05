@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, Building2, Pencil } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, Building2, Pencil, CheckSquare } from "lucide-react";
 import { RowActionsDropdown, Edit, Trash2 } from "./RowActionsDropdown";
 import { AccountModal } from "./AccountModal";
 import { AccountColumnCustomizer, AccountColumnConfig, defaultAccountColumns } from "./AccountColumnCustomizer";
@@ -24,6 +24,8 @@ import { HighlightedText } from "./shared/HighlightedText";
 import { getAccountStatusColor } from "@/utils/accountStatusUtils";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
+import { TaskModal } from "./tasks/TaskModal";
+import { useTasks } from "@/hooks/useTasks";
 import { useQuery } from "@tanstack/react-query";
 
 // Export ref interface for parent component
@@ -149,6 +151,15 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [viewingAccount, setViewingAccount] = useState<Account | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskAccountId, setTaskAccountId] = useState<string | null>(null);
+
+  const { createTask } = useTasks();
+
+  const handleCreateTask = (account: Account) => {
+    setTaskAccountId(account.id);
+    setTaskModalOpen(true);
+  };
 
   // Handle viewId from URL (from global search)
   const viewId = searchParams.get('viewId');
@@ -630,6 +641,11 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                             }
                           },
                           {
+                            label: "Create Task",
+                            icon: <CheckSquare className="w-4 h-4" />,
+                            onClick: () => handleCreateTask(account)
+                          },
+                          {
                             label: "Delete",
                             icon: <Trash2 className="w-4 h-4" />,
                             onClick: () => {
@@ -692,7 +708,12 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
       setShowModal(true);
     }} />
 
-      
+      <TaskModal
+        open={taskModalOpen}
+        onOpenChange={setTaskModalOpen}
+        onSubmit={createTask}
+        context={taskAccountId ? { module: 'accounts', recordId: taskAccountId, locked: true } : undefined}
+      />
     </div>;
 });
 AccountTable.displayName = "AccountTable";

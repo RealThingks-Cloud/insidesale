@@ -30,9 +30,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
-import { SubtasksSection, SubtaskItem } from './SubtasksSection';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Loader2, CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// Generate 30-minute time slots
+const generateTimeSlots = () => {
+  const slots: string[] = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const h = hour.toString().padStart(2, '0');
+      const m = minute.toString().padStart(2, '0');
+      slots.push(`${h}:${m}`);
+    }
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots();
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -78,8 +98,6 @@ export const TaskModal = ({
   const [leads, setLeads] = useState<{ id: string; lead_name: string; account_id: string | null; account_name?: string }[]>([]);
   const [meetings, setMeetings] = useState<{ id: string; subject: string; start_time: string }[]>([]);
   const [deals, setDeals] = useState<{ id: string; deal_name: string; stage: string }[]>([]);
-  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
-  const [activeTab, setActiveTab] = useState('details');
   
   const [selectedContact, setSelectedContact] = useState<typeof contacts[0] | null>(null);
   const [selectedLead, setSelectedLead] = useState<typeof leads[0] | null>(null);
@@ -128,7 +146,6 @@ export const TaskModal = ({
   useEffect(() => {
     if (open) {
       fetchDropdownData();
-      setActiveTab('details');
       if (task) {
         form.reset({
           title: task.title,
@@ -145,7 +162,6 @@ export const TaskModal = ({
           meeting_id: task.meeting_id || '',
           deal_id: task.deal_id || '',
         });
-        fetchSubtasks(task.id);
       } else {
         form.reset({
           title: '',
@@ -162,27 +178,9 @@ export const TaskModal = ({
           meeting_id: context?.module === 'meetings' ? context?.recordId : '',
           deal_id: context?.module === 'deals' ? context?.recordId : '',
         });
-        setSubtasks([]);
       }
     }
   }, [open, task, form, context]);
-
-  const fetchSubtasks = async (taskId: string) => {
-    const { data, error } = await supabase
-      .from('task_subtasks')
-      .select('*')
-      .eq('task_id', taskId)
-      .order('order_index', { ascending: true });
-
-    if (!error && data) {
-      setSubtasks(data.map(s => ({
-        id: s.id,
-        title: s.title,
-        is_completed: s.is_completed,
-        order_index: s.order_index,
-      })));
-    }
-  };
 
   const fetchDropdownData = async () => {
     const [usersRes, accountsRes, contactsRes, leadsRes, meetingsRes, dealsRes] = await Promise.all([
@@ -247,43 +245,6 @@ export const TaskModal = ({
     setSelectedDeal(deal || null);
   };
 
-  const saveSubtasks = async (taskId: string) => {
-    // Get existing subtasks
-    const { data: existingSubtasks } = await supabase
-      .from('task_subtasks')
-      .select('id')
-      .eq('task_id', taskId);
-
-    const existingIds = new Set((existingSubtasks || []).map(s => s.id));
-    const currentIds = new Set(subtasks.filter(s => !s.id.startsWith('temp-')).map(s => s.id));
-
-    // Delete removed subtasks
-    const idsToDelete = [...existingIds].filter(id => !currentIds.has(id));
-    if (idsToDelete.length > 0) {
-      await supabase.from('task_subtasks').delete().in('id', idsToDelete);
-    }
-
-    // Upsert subtasks
-    for (const subtask of subtasks) {
-      if (subtask.id.startsWith('temp-')) {
-        // Insert new subtask
-        await supabase.from('task_subtasks').insert({
-          task_id: taskId,
-          title: subtask.title,
-          is_completed: subtask.is_completed,
-          order_index: subtask.order_index,
-        });
-      } else {
-        // Update existing subtask
-        await supabase.from('task_subtasks').update({
-          title: subtask.title,
-          is_completed: subtask.is_completed,
-          order_index: subtask.order_index,
-        }).eq('id', subtask.id);
-      }
-    }
-  };
-
   const handleSubmit = async (data: TaskFormData) => {
     setLoading(true);
     try {
@@ -305,12 +266,8 @@ export const TaskModal = ({
 
       if (task && onUpdate) {
         await onUpdate(task.id, taskData, task);
-        await saveSubtasks(task.id);
       } else {
-        const result = await onSubmit(taskData);
-        if (result?.id) {
-          await saveSubtasks(result.id);
-        }
+        await onSubmit(taskData);
       }
       onOpenChange(false);
     } finally {
@@ -329,19 +286,10 @@ export const TaskModal = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="subtasks">
-                  Subtasks {subtasks.length > 0 && `(${subtasks.length})`}
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="details" className="space-y-4 mt-4">
-                {/* Module and Module-Specific Field in Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Module Selector */}
-                  <FormField
+            {/* Module and Module-Specific Field in Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Module Selector */}
+              <FormField
                     control={form.control}
                     name="module_type"
                     render={({ field }) => (
@@ -573,32 +521,67 @@ export const TaskModal = ({
                     control={form.control}
                     name="due_date"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Due Date *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Due Date & Time *</FormLabel>
+                        <div className="flex gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "flex-1 pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(new Date(field.value), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ? new Date(field.value) : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(format(date, 'yyyy-MM-dd'));
+                                  }
+                                }}
+                                initialFocus
+                                className={cn("p-3 pointer-events-auto")}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          
+                          {/* Time Select with 30-min slots */}
+                          <FormField
+                            control={form.control}
+                            name="due_time"
+                            render={({ field: timeField }) => (
+                              <Select onValueChange={timeField.onChange} value={timeField.value || ''}>
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue placeholder="Time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TIME_SLOTS.map((slot) => (
+                                    <SelectItem key={slot} value={slot}>
+                                      {slot}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-
-                {/* Due Time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="due_time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Due Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <div />
                 </div>
 
                 {/* Status & Priority */}
@@ -670,21 +653,6 @@ export const TaskModal = ({
                     <Input value={currentUserName || 'Current User'} disabled className="bg-muted" />
                   </FormItem>
                 )}
-              </TabsContent>
-
-              <TabsContent value="subtasks" className="mt-4">
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Break down this task into smaller subtasks. Drag to reorder.
-                  </p>
-                  <SubtasksSection
-                    subtasks={subtasks}
-                    onChange={setSubtasks}
-                    disabled={loading}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

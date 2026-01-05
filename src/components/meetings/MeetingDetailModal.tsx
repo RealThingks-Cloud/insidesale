@@ -24,12 +24,14 @@ import {
   CalendarClock,
   Activity,
   ListTodo,
-  Pencil
+  Pencil,
+  Plus
 } from "lucide-react";
 import { format } from "date-fns";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { getMeetingStatus } from "@/utils/meetingStatus";
 import { MeetingFollowUpsSection } from "./MeetingFollowUpsSection";
+import { TaskModal } from "@/components/tasks/TaskModal";
 
 interface Meeting {
   id: string;
@@ -122,6 +124,7 @@ export const MeetingDetailModal = ({
   const [linkedAccount, setLinkedAccount] = useState<LinkedAccount | null>(null);
   const [linkedDeal, setLinkedDeal] = useState<LinkedDeal | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
 
   const userIds = [meeting?.created_by].filter(Boolean) as string[];
   const { displayNames } = useUserDisplayNames(userIds);
@@ -217,6 +220,7 @@ export const MeetingDetailModal = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
@@ -243,6 +247,15 @@ export const MeetingDetailModal = ({
                   Join
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowTaskModal(true)}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Task
+              </Button>
               {onEdit && (
                 <Button
                   variant="outline"
@@ -503,5 +516,39 @@ export const MeetingDetailModal = ({
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    <TaskModal
+      open={showTaskModal}
+      onOpenChange={setShowTaskModal}
+      onSubmit={async (data) => {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user?.id) return null;
+        
+        const { data: taskData, error } = await supabase
+          .from('tasks')
+          .insert({
+            ...data,
+            meeting_id: meeting.id,
+            module_type: 'meetings',
+            created_by: userData.user.id,
+          })
+          .select()
+          .single();
+
+        if (!error && taskData) {
+          setShowTaskModal(false);
+          fetchLinkedData();
+          onUpdate?.();
+          toast({
+            title: "Success",
+            description: "Task created and linked to meeting",
+          });
+          return taskData;
+        }
+        return null;
+      }}
+      context={{ module: 'meetings', recordId: meeting.id, recordName: meeting.subject, locked: true }}
+    />
+  </>
   );
 };
