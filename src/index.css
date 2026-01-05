@@ -239,6 +239,12 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  #root {
+    min-height: 100vh;
+    width: 100%;
+    zoom: 0.9;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
