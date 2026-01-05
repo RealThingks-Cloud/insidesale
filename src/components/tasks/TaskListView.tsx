@@ -287,7 +287,7 @@ export const TaskListView = ({
 
       {/* Task Table */}
       <Card className="flex-1 min-h-0 flex flex-col">
-        <div className="relative overflow-auto flex-1">
+        <div className="relative overflow-auto flex-1 min-h-0">
           <Table>
             <TableHeader>
               <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
@@ -473,63 +473,63 @@ export const TaskListView = ({
             </TableBody>
           </Table>
         </div>
+        
+        {/* Pagination */}
+        <div className="flex items-center justify-between p-4 border-t flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">
+              Showing {filteredTasks.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(1)} 
+              disabled={currentPage === 1}
+              className="hidden sm:flex"
+              aria-label="Go to first page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 -ml-2" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+              disabled={currentPage === 1}
+              aria-label="Go to previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline ml-1">Previous</span>
+            </Button>
+            <span className="text-sm px-3 py-1 bg-muted rounded-md font-medium">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+              disabled={currentPage === totalPages || totalPages === 0}
+              aria-label="Go to next page"
+            >
+              <span className="hidden sm:inline mr-1">Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(totalPages)} 
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="hidden sm:flex"
+              aria-label="Go to last page"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 -ml-2" />
+            </Button>
+          </div>
+        </div>
       </Card>
-
-      {/* Pagination - Consistent with TablePagination component */}
-      <div className="flex items-center justify-between py-4 px-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">
-            Showing {filteredTasks.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(1)} 
-            disabled={currentPage === 1}
-            className="hidden sm:flex"
-            aria-label="Go to first page"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <ChevronLeft className="w-4 h-4 -ml-2" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
-            disabled={currentPage === 1}
-            aria-label="Go to previous page"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span className="hidden sm:inline ml-1">Previous</span>
-          </Button>
-          <span className="text-sm px-3 py-1 bg-muted rounded-md font-medium">
-            Page {currentPage} of {totalPages || 1}
-          </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
-            disabled={currentPage === totalPages || totalPages === 0}
-            aria-label="Go to next page"
-          >
-            <span className="hidden sm:inline mr-1">Next</span>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(totalPages)} 
-            disabled={currentPage === totalPages || totalPages === 0}
-            className="hidden sm:flex"
-            aria-label="Go to last page"
-          >
-            <ChevronRight className="w-4 h-4" />
-            <ChevronRight className="w-4 h-4 -ml-2" />
-          </Button>
-        </div>
-      </div>
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}
