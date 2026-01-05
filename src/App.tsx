@@ -8,20 +8,33 @@ import { useAuth } from "@/hooks/useAuth";
 import SecurityEnhancedApp from "@/components/SecurityEnhancedApp";
 import { AppSidebar } from "@/components/AppSidebar";
 import PageAccessGuard from "@/components/PageAccessGuard";
-import Dashboard from "./pages/Dashboard";
-import Accounts from "./pages/Accounts";
-import Contacts from "./pages/Contacts";
-import Leads from "./pages/Leads";
-import Meetings from "./pages/Meetings";
-import DealsPage from "./pages/DealsPage";
-import Settings from "./pages/Settings";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import Notifications from "./pages/Notifications";
-import Tasks from "./pages/Tasks";
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+
+// Lazy load all page components for code-splitting
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Accounts = lazy(() => import("./pages/Accounts"));
+const Contacts = lazy(() => import("./pages/Contacts"));
+const Leads = lazy(() => import("./pages/Leads"));
+const Meetings = lazy(() => import("./pages/Meetings"));
+const DealsPage = lazy(() => import("./pages/DealsPage"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Auth = lazy(() => import("./pages/Auth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Tasks = lazy(() => import("./pages/Tasks"));
+const StickyHeaderTest = lazy(() => import("./pages/StickyHeaderTest"));
 
 const queryClient = new QueryClient();
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
 
 // Layout Component for all pages with fixed sidebar
 const FixedSidebarLayout = ({ children }: { children: React.ReactNode }) => {
@@ -99,73 +112,71 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// App Router Component - inside the auth context
-// Lazy load test page
-import StickyHeaderTest from "./pages/StickyHeaderTest";
-
-// App Router Component - inside the auth context
+// App Router Component with Suspense for lazy-loaded pages
 const AppRouter = () => (
   <BrowserRouter>
-    <Routes>
-      {/* Public test route for sticky header verification */}
-      <Route path="/sticky-header-test" element={<StickyHeaderTest />} />
-      <Route path="/auth" element={
-        <AuthRoute>
-          <Auth />
-        </AuthRoute>
-      } />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/accounts" element={
-        <ProtectedRoute>
-          <Accounts />
-        </ProtectedRoute>
-      } />
-      <Route path="/contacts" element={
-        <ProtectedRoute>
-          <Contacts />
-        </ProtectedRoute>
-      } />
-      <Route path="/leads" element={
-        <ProtectedRoute>
-          <Leads />
-        </ProtectedRoute>
-      } />
-      <Route path="/meetings" element={
-        <ProtectedRoute>
-          <Meetings />
-        </ProtectedRoute>
-      } />
-      <Route path="/deals" element={
-        <ProtectedRoute>
-          <DealsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/notifications" element={
-        <ProtectedRoute>
-          <Notifications />
-        </ProtectedRoute>
-      } />
-      <Route path="/tasks" element={
-        <ProtectedRoute>
-          <Tasks />
-        </ProtectedRoute>
-      } />
-      <Route path="/settings" element={
-        <ProtectedRoute>
-          <Settings />
-        </ProtectedRoute>
-      } />
-      <Route path="*" element={
-        <ProtectedRoute>
-          <NotFound />
-        </ProtectedRoute>
-      } />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Public test route for sticky header verification */}
+        <Route path="/sticky-header-test" element={<StickyHeaderTest />} />
+        <Route path="/auth" element={
+          <AuthRoute>
+            <Auth />
+          </AuthRoute>
+        } />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/accounts" element={
+          <ProtectedRoute>
+            <Accounts />
+          </ProtectedRoute>
+        } />
+        <Route path="/contacts" element={
+          <ProtectedRoute>
+            <Contacts />
+          </ProtectedRoute>
+        } />
+        <Route path="/leads" element={
+          <ProtectedRoute>
+            <Leads />
+          </ProtectedRoute>
+        } />
+        <Route path="/meetings" element={
+          <ProtectedRoute>
+            <Meetings />
+          </ProtectedRoute>
+        } />
+        <Route path="/deals" element={
+          <ProtectedRoute>
+            <DealsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <Notifications />
+          </ProtectedRoute>
+        } />
+        <Route path="/tasks" element={
+          <ProtectedRoute>
+            <Tasks />
+          </ProtectedRoute>
+        } />
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
+        <Route path="*" element={
+          <ProtectedRoute>
+            <NotFound />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </Suspense>
   </BrowserRouter>
 );
 
