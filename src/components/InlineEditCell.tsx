@@ -222,7 +222,7 @@ export const InlineEditCell = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {options.map(option => (
+              {options.filter(option => option && option.trim() !== '').map(option => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>
@@ -238,7 +238,7 @@ export const InlineEditCell = ({
               <SelectValue placeholder="Select user" />
             </SelectTrigger>
             <SelectContent>
-              {userOptions.map(user => (
+              {userOptions.filter(user => user.id && user.id.trim() !== '').map(user => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.full_name || 'Unknown'}
                 </SelectItem>
