@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, Building2 } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, Building2, Pencil } from "lucide-react";
 import { RowActionsDropdown, Edit, Trash2, Mail } from "./RowActionsDropdown";
 import { AccountModal } from "./AccountModal";
 import { AccountColumnCustomizer, AccountColumnConfig, defaultAccountColumns } from "./AccountColumnCustomizer";
@@ -22,6 +22,7 @@ import { AccountDeleteConfirmDialog } from "./AccountDeleteConfirmDialog";
 import { SendEmailModal, EmailRecipient } from "./SendEmailModal";
 import { AccountDetailModal } from "./accounts/AccountDetailModal";
 import { HighlightedText } from "./shared/HighlightedText";
+import { getAccountStatusColor } from "@/utils/accountStatusUtils";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +30,7 @@ import { useQuery } from "@tanstack/react-query";
 // Export ref interface for parent component
 export interface AccountTableRef {
   handleBulkDelete: () => Promise<void>;
+  getSelectedAccountsForEmail: () => { id: string; name: string; email?: string; type: 'lead' | 'contact' | 'account' }[];
 }
 export interface Account {
   id: string;
@@ -48,9 +50,6 @@ export interface Account {
   updated_at?: string;
   created_by?: string;
   modified_by?: string;
-  score?: number;
-  segment?: string;
-  total_revenue?: number;
   deal_count?: number;
   contact_count?: number;
 }
@@ -174,9 +173,22 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
     }
   }, [viewId, accounts, setSearchParams]);
 
-  // Expose handleBulkDelete to parent via ref
+  // Get selected accounts formatted for bulk email
+  const getSelectedAccountsForEmail = () => {
+    return accounts
+      .filter(a => selectedAccounts.includes(a.id))
+      .map(a => ({
+        id: a.id,
+        name: a.company_name,
+        email: a.email || undefined,
+        type: 'account' as const
+      }));
+  };
+
+  // Expose handleBulkDelete and getSelectedAccountsForEmail to parent via ref
   useImperativeHandle(ref, () => ({
-    handleBulkDelete
+    handleBulkDelete,
+    getSelectedAccountsForEmail
   }), [selectedAccounts, accounts]);
 
   // Fetch all profiles for owner dropdown
@@ -196,7 +208,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
   }, []);
   useEffect(() => {
     const searchLower = searchTerm.toLowerCase();
-    let filtered = accounts.filter(account => account.company_name?.toLowerCase().includes(searchLower) || account.industry?.toLowerCase().includes(searchLower) || account.country?.toLowerCase().includes(searchLower) || account.email?.toLowerCase().includes(searchLower) || account.phone?.toLowerCase().includes(searchLower) || account.website?.toLowerCase().includes(searchLower) || account.notes?.toLowerCase().includes(searchLower) || account.company_type?.toLowerCase().includes(searchLower) || account.region?.toLowerCase().includes(searchLower) || account.segment?.toLowerCase().includes(searchLower) || account.tags?.some(tag => tag.toLowerCase().includes(searchLower)));
+    let filtered = accounts.filter(account => account.company_name?.toLowerCase().includes(searchLower) || account.industry?.toLowerCase().includes(searchLower) || account.country?.toLowerCase().includes(searchLower) || account.email?.toLowerCase().includes(searchLower) || account.phone?.toLowerCase().includes(searchLower) || account.website?.toLowerCase().includes(searchLower) || account.notes?.toLowerCase().includes(searchLower) || account.company_type?.toLowerCase().includes(searchLower) || account.region?.toLowerCase().includes(searchLower) || account.tags?.some(tag => tag.toLowerCase().includes(searchLower)));
     if (statusFilter !== "all") {
       filtered = filtered.filter(account => account.status === statusFilter);
     }
@@ -213,7 +225,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
         const aValue = a[sortField as keyof Account] || '';
         const bValue = b[sortField as keyof Account] || '';
 
-        // Handle numeric sorting for score, revenue, counts
+        // Handle numeric sorting for counts
         if (typeof aValue === 'number' && typeof bValue === 'number') {
           return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
         }
@@ -260,10 +272,25 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
         return acc;
       }, {} as Record<string, number>);
 
-      // Merge actual counts into accounts
+      // Fetch deal counts by account_id (now using proper FK)
+      const { data: dealCounts } = await supabase
+        .from('deals')
+        .select('account_id')
+        .not('account_id', 'is', null);
+
+      // Calculate deal counts
+      const dealCountMap = (dealCounts || []).reduce((acc, d) => {
+        if (d.account_id) {
+          acc[d.account_id] = (acc[d.account_id] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Merge actual counts into accounts (DB triggers will keep these in sync)
       const accountsWithCounts = (accountsData || []).map(account => ({
         ...account,
-        contact_count: contactCountMap[account.id] || 0,
+        contact_count: account.contact_count || contactCountMap[account.id] || 0,
+        deal_count: account.deal_count || dealCountMap[account.id] || 0,
       }));
 
       setAccounts(accountsWithCounts);
@@ -409,35 +436,18 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
     setOwnerFilter("all");
     setTagFilter(null);
   };
-  const getStatusBadgeClasses = (status?: string) => {
-    switch (status) {
-      case 'Hot':
-        return 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border-rose-200 dark:border-rose-800';
-      case 'Warm':
-        return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      case 'Working':
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      case 'Nurture':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
-      case 'Closed-Won':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'Closed-Lost':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-200 dark:border-gray-700';
-      case 'New':
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800/30 dark:text-slate-300 border-slate-200 dark:border-slate-700';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
 
   // Generate initials from company name
   const getCompanyInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
   };
 
-  // Generate consistent color from company name
+  // Generate consistent vibrant color from company name
   const getAvatarColor = (name: string) => {
-    const colors = ['bg-slate-500', 'bg-slate-600', 'bg-zinc-500', 'bg-gray-500', 'bg-stone-500', 'bg-neutral-500', 'bg-slate-700', 'bg-zinc-600'];
+    const colors = [
+      'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 
+      'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'
+    ];
     const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     return colors[index];
   };
@@ -506,8 +516,8 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                     <Checkbox checked={selectedAccounts.length > 0 && selectedAccounts.length === Math.min(pageAccounts.length, 50)} onCheckedChange={handleSelectAll} />
                   </div>
                 </TableHead>
-                {visibleColumns.map(column => <TableHead key={column.field} className="text-left font-bold text-foreground px-4 py-3 whitespace-nowrap">
-                    <div onClick={() => handleSort(column.field)} className="group gap-2 cursor-pointer hover:text-primary flex items-center justify-center">
+                {visibleColumns.map(column => <TableHead key={column.field} className={`${column.field === 'company_name' ? 'text-left' : 'text-center'} font-bold text-foreground px-4 py-3 whitespace-nowrap`}>
+                    <div onClick={() => handleSort(column.field)} className={`group gap-2 cursor-pointer hover:text-primary flex items-center ${column.field === 'company_name' ? 'justify-start' : 'justify-center'}`}>
                       {column.label}
                       {getSortIcon(column.field)}
                     </div>
@@ -538,7 +548,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                         <Checkbox checked={selectedAccounts.includes(account.id)} onCheckedChange={checked => handleSelectAccount(account.id, checked as boolean)} />
                       </div>
                     </TableCell>
-                    {visibleColumns.map(column => <TableCell key={column.field} className="text-left px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                    {visibleColumns.map(column => <TableCell key={column.field} className={`${column.field === 'company_name' ? 'text-left' : 'text-center'} px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]`}>
                         {column.field === 'company_name' ? <button onClick={() => {
                     setViewingAccount(account);
                     setShowDetailModal(true);
@@ -552,24 +562,10 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                             )
                           ) : column.field === 'status' ? (
                             account.status ? (
-                              <Badge variant="outline" className={`whitespace-nowrap ${getStatusBadgeClasses(account.status)}`}>{account.status}</Badge>
+                              <Badge variant="outline" className={`whitespace-nowrap ${getAccountStatusColor(account.status)}`}>{account.status}</Badge>
                             ) : (
                               <span className="text-center text-muted-foreground w-full block">-</span>
                             )
-                          ) : column.field === 'score' ? (
-                            account.score != null ? (
-                              <span className={`font-medium text-center block w-full ${account.score >= 70 ? 'text-green-600 dark:text-green-400' : account.score >= 40 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{account.score}</span>
-                            ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
-                            )
-                          ) : column.field === 'segment' ? (
-                            account.segment ? (
-                              <Badge variant="outline" className="text-xs">{account.segment}</Badge>
-                            ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
-                            )
-                          ) : column.field === 'total_revenue' ? (
-                            <span className="font-medium">{formatCurrency(account.total_revenue)}</span>
                           ) : column.field === 'deal_count' ? (
                             <span className="text-center w-full block">{account.deal_count ?? 0}</span>
                           ) : column.field === 'contact_count' ? (
@@ -632,42 +628,47 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                           )}
                       </TableCell>)}
                     <TableCell className="w-20 px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <RowActionsDropdown actions={[{
-                    label: "View",
-                    icon: <Eye className="w-4 h-4" />,
-                    onClick: () => {
-                      setViewingAccount(account);
-                      setShowDetailModal(true);
-                    }
-                  }, {
-                    label: "Edit",
-                    icon: <Edit className="w-4 h-4" />,
-                    onClick: () => {
-                      setEditingAccount(account);
-                      setShowModal(true);
-                    }
-                  }, ...(account.email ? [{
-                    label: "Send Email",
-                    icon: <Mail className="w-4 h-4" />,
-                    onClick: () => {
-                      setEmailRecipient({
-                        name: account.company_name,
-                        email: account.email,
-                        company_name: account.company_name
-                      });
-                      setEmailModalOpen(true);
-                    }
-                  }] : []), {
-                    label: "Delete",
-                    icon: <Trash2 className="w-4 h-4" />,
-                    onClick: () => {
-                      setAccountToDelete(account);
-                      setShowDeleteDialog(true);
-                    },
-                    destructive: true,
-                    separator: true
-                  }]} />
+                      <div className="flex items-center justify-center">
+                        <RowActionsDropdown actions={[
+                          {
+                            label: "View",
+                            icon: <Eye className="w-4 h-4" />,
+                            onClick: () => {
+                              setViewingAccount(account);
+                              setShowDetailModal(true);
+                            }
+                          },
+                          {
+                            label: "Edit",
+                            icon: <Edit className="w-4 h-4" />,
+                            onClick: () => {
+                              setEditingAccount(account);
+                              setShowModal(true);
+                            }
+                          },
+                          ...(account.email ? [{
+                            label: "Send Email",
+                            icon: <Mail className="w-4 h-4" />,
+                            onClick: () => {
+                              setEmailRecipient({
+                                name: account.company_name,
+                                email: account.email,
+                                company_name: account.company_name
+                              });
+                              setEmailModalOpen(true);
+                            }
+                          }] : []),
+                          {
+                            label: "Delete",
+                            icon: <Trash2 className="w-4 h-4" />,
+                            onClick: () => {
+                              setAccountToDelete(account);
+                              setShowDeleteDialog(true);
+                            },
+                            destructive: true,
+                            separator: true
+                          }
+                        ]} />
                       </div>
                     </TableCell>
                   </TableRow>)}

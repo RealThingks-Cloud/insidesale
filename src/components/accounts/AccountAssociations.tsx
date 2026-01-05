@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { User, Briefcase, ExternalLink, Loader2, Mail, Phone } from "lucide-react";
+import { User, Briefcase, ExternalLink, Loader2, Mail, Phone, Plus, UserPlus, Calendar, CheckSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 
 interface Contact {
   id: string;
@@ -23,6 +24,29 @@ interface Deal {
   probability?: number;
 }
 
+interface Lead {
+  id: string;
+  lead_name: string;
+  lead_status?: string;
+  email?: string;
+  company_name?: string;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date?: string | null;
+}
+
+interface Meeting {
+  id: string;
+  subject: string;
+  start_time: string;
+  status: string;
+}
+
 interface AccountAssociationsProps {
   accountId: string;
   companyName: string;
@@ -32,6 +56,9 @@ export const AccountAssociations = ({ accountId, companyName }: AccountAssociati
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +68,6 @@ export const AccountAssociations = ({ accountId, companyName }: AccountAssociati
   const fetchAssociations = async () => {
     setLoading(true);
     try {
-      // Fetch contacts linked to this account
       const { data: contactData } = await supabase
         .from('contacts')
         .select('id, contact_name, email, phone_no, position')
@@ -50,16 +76,43 @@ export const AccountAssociations = ({ accountId, companyName }: AccountAssociati
 
       setContacts(contactData || []);
 
-      // Fetch deals where customer_name matches company_name
-      if (companyName) {
-        const { data: dealData } = await supabase
-          .from('deals')
-          .select('id, deal_name, stage, total_contract_value, probability')
-          .eq('customer_name', companyName)
-          .order('created_at', { ascending: false });
+      // Fetch deals by account_id (proper FK relationship)
+      const { data: dealData } = await supabase
+        .from('deals')
+        .select('id, deal_name, stage, total_contract_value, probability')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false });
 
-        setDeals(dealData || []);
-      }
+      setDeals(dealData || []);
+
+      // Fetch leads by account_id
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('id, lead_name, lead_status, email, company_name')
+        .eq('account_id', accountId)
+        .order('created_time', { ascending: false });
+
+      setLeads(leadData || []);
+
+      // Fetch tasks by account_id
+      const { data: taskData } = await supabase
+        .from('tasks')
+        .select('id, title, status, priority, due_date')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      setTasks(taskData || []);
+
+      // Fetch meetings by account_id
+      const { data: meetingData } = await supabase
+        .from('meetings')
+        .select('id, subject, start_time, status')
+        .eq('account_id', accountId)
+        .order('start_time', { ascending: false })
+        .limit(6);
+
+      setMeetings(meetingData || []);
     } catch (error) {
       console.error('Error fetching associations:', error);
     } finally {
@@ -81,6 +134,17 @@ export const AccountAssociations = ({ accountId, companyName }: AccountAssociati
     return stageColors[stage] || 'bg-gray-100 text-gray-800';
   };
 
+  const getLeadStatusColor = (status?: string) => {
+    const statusColors: Record<string, string> = {
+      'New': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      'Contacted': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      'Qualified': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      'Unqualified': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+      'Converted': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    };
+    return statusColors[status || ''] || 'bg-gray-100 text-gray-800';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -90,113 +154,248 @@ export const AccountAssociations = ({ accountId, companyName }: AccountAssociati
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Contacts */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Contacts ({contacts.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {contacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No contacts linked to this account
-            </p>
-          ) : (
-            <ScrollArea className="h-[200px]">
-              <div className="space-y-2">
-                {contacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">{contact.contact_name}</p>
-                      {contact.position && (
-                        <p className="text-xs text-muted-foreground truncate">{contact.position}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 ml-2">
-                      {contact.email && (
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
-                          <a href={`mailto:${contact.email}`}>
-                            <Mail className="h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                      {contact.phone_no && (
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
-                          <a href={`tel:${contact.phone_no}`}>
-                            <Phone className="h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Contacts */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Contacts ({contacts.length})
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/contacts?createFor=${accountId}&companyName=${encodeURIComponent(companyName)}`)}
+                className="h-7 gap-1 text-xs"
+              >
+                <Plus className="h-3 w-3" />
+                Add Contact
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {contacts.length === 0 ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto">
+                  <User className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">No contacts yet</p>
+                  <p className="text-xs text-muted-foreground">Add contacts to track relationships</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/contacts?createFor=${accountId}&companyName=${encodeURIComponent(companyName)}`)}
+                  className="gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add First Contact
+                </Button>
               </div>
-            </ScrollArea>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={() => navigate('/contacts')}
-          >
-            View All Contacts
-            <ExternalLink className="h-3 w-3 ml-1" />
-          </Button>
-        </CardContent>
-      </Card>
+            ) : (
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {contacts.map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{contact.contact_name}</p>
+                        {contact.position && (
+                          <p className="text-xs text-muted-foreground truncate">{contact.position}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        {contact.email && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                            <a href={`mailto:${contact.email}`}>
+                              <Mail className="h-3 w-3" />
+                            </a>
+                          </Button>
+                        )}
+                        {contact.phone_no && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                            <a href={`tel:${contact.phone_no}`}>
+                              <Phone className="h-3 w-3" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+            {contacts.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-3"
+                onClick={() => navigate('/contacts')}
+              >
+                View All Contacts
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Deals */}
+        {/* Deals */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                Deals ({deals.length})
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/deals?createFor=${accountId}&customerName=${encodeURIComponent(companyName)}`)}
+                className="h-7 gap-1 text-xs"
+              >
+                <Plus className="h-3 w-3" />
+                Add Deal
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {deals.length === 0 ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto">
+                  <Briefcase className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">No deals yet</p>
+                  <p className="text-xs text-muted-foreground">Create deals to track opportunities</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/deals?createFor=${accountId}&customerName=${encodeURIComponent(companyName)}`)}
+                  className="gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add First Deal
+                </Button>
+              </div>
+            ) : (
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {deals.map((deal) => (
+                    <div
+                      key={deal.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      onClick={() => navigate(`/deals?viewId=${deal.id}`)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{deal.deal_name}</p>
+                        {deal.total_contract_value && (
+                          <p className="text-xs text-muted-foreground">
+                            ${deal.total_contract_value.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <Badge className={`ml-2 ${getStageColor(deal.stage)}`}>
+                        {deal.stage}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+            {deals.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-3"
+                onClick={() => navigate('/deals')}
+              >
+                View All Deals
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Leads */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Briefcase className="h-4 w-4" />
-            Deals ({deals.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Leads ({leads.length})
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/leads?createFor=${accountId}&companyName=${encodeURIComponent(companyName)}`)}
+              className="h-7 gap-1 text-xs"
+            >
+              <Plus className="h-3 w-3" />
+              Add Lead
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          {deals.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No deals linked to this account
-            </p>
-          ) : (
-            <ScrollArea className="h-[200px]">
-              <div className="space-y-2">
-                {deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">{deal.deal_name}</p>
-                      {deal.total_contract_value && (
-                        <p className="text-xs text-muted-foreground">
-                          ${deal.total_contract_value.toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                    <Badge className={`ml-2 ${getStageColor(deal.stage)}`}>
-                      {deal.stage}
-                    </Badge>
-                  </div>
-                ))}
+          {leads.length === 0 ? (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto">
+                <UserPlus className="h-6 w-6 text-muted-foreground" />
               </div>
-            </ScrollArea>
+              <div>
+                <p className="text-sm font-medium">No leads yet</p>
+                <p className="text-xs text-muted-foreground">Add leads to track potential opportunities</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/leads?createFor=${accountId}&companyName=${encodeURIComponent(companyName)}`)}
+                className="gap-1"
+              >
+                <Plus className="h-3 w-3" />
+                Add First Lead
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {leads.slice(0, 6).map((lead) => (
+                <div
+                  key={lead.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                  onClick={() => navigate(`/leads?viewId=${lead.id}`)}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{lead.lead_name}</p>
+                    {lead.email && (
+                      <p className="text-xs text-muted-foreground truncate">{lead.email}</p>
+                    )}
+                  </div>
+                  {lead.lead_status && (
+                    <Badge className={`ml-2 text-xs ${getLeadStatusColor(lead.lead_status)}`}>
+                      {lead.lead_status}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={() => navigate('/deals')}
-          >
-            View All Deals
-            <ExternalLink className="h-3 w-3 ml-1" />
-          </Button>
+          {leads.length > 6 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-3"
+              onClick={() => navigate('/leads')}
+            >
+              View All {leads.length} Leads
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

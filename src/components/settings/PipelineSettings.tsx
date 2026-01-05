@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface PipelineStage {
   id: string;
@@ -290,6 +291,78 @@ const PipelineSettings = () => {
     }
   };
 
+  const handleStageDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+    
+    const items = Array.from(stages);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    // Update local state immediately
+    const updatedStages = items.map((stage, index) => ({
+      ...stage,
+      stage_order: index
+    }));
+    setStages(updatedStages);
+    
+    // Persist to database
+    try {
+      const updates = updatedStages.map(stage => ({
+        id: stage.id,
+        stage_order: stage.stage_order
+      }));
+      
+      for (const update of updates) {
+        await supabase
+          .from('pipeline_stages')
+          .update({ stage_order: update.stage_order })
+          .eq('id', update.id);
+      }
+      
+      toast.success('Stage order updated');
+    } catch (error) {
+      console.error('Error updating stage order:', error);
+      toast.error('Failed to update stage order');
+      fetchData(); // Rollback on error
+    }
+  };
+
+  const handleStatusDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+    
+    const items = Array.from(statuses);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    // Update local state immediately
+    const updatedStatuses = items.map((status, index) => ({
+      ...status,
+      status_order: index
+    }));
+    setStatuses(updatedStatuses);
+    
+    // Persist to database
+    try {
+      const updates = updatedStatuses.map(status => ({
+        id: status.id,
+        status_order: status.status_order
+      }));
+      
+      for (const update of updates) {
+        await supabase
+          .from('lead_statuses')
+          .update({ status_order: update.status_order })
+          .eq('id', update.id);
+      }
+      
+      toast.success('Status order updated');
+    } catch (error) {
+      console.error('Error updating status order:', error);
+      toast.error('Failed to update status order');
+      fetchData(); // Rollback on error
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -338,51 +411,74 @@ const PipelineSettings = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {stages.map((stage) => (
-              <div
-                key={stage.id}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-3">
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: stage.stage_color }}
-                    aria-label={`Color: ${colorOptions.find(c => c.hex === stage.stage_color)?.name || stage.stage_color}`}
-                  />
-                  <span className="font-medium">{stage.stage_name}</span>
-                  <Badge variant="outline">{stage.stage_probability}%</Badge>
-                  {stage.is_won_stage && <Badge className="bg-green-500">Won</Badge>}
-                  {stage.is_lost_stage && <Badge variant="destructive">Lost/Dropped</Badge>}
-                  {!stage.is_active && <Badge variant="secondary">Inactive</Badge>}
+          <DragDropContext onDragEnd={handleStageDragEnd}>
+            <Droppable droppableId="stages">
+              {(provided) => (
+                <div 
+                  className="space-y-2" 
+                  {...provided.droppableProps} 
+                  ref={provided.innerRef}
+                >
+                  {stages.map((stage, index) => (
+                    <Draggable key={stage.id} draggableId={stage.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                            snapshot.isDragging ? 'bg-muted shadow-md' : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div 
+                              {...provided.dragHandleProps}
+                              className="cursor-grab active:cursor-grabbing"
+                            >
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: stage.stage_color }}
+                              aria-label={`Color: ${colorOptions.find(c => c.hex === stage.stage_color)?.name || stage.stage_color}`}
+                            />
+                            <span className="font-medium">{stage.stage_name}</span>
+                            <Badge variant="outline">{stage.stage_probability}%</Badge>
+                            {stage.is_won_stage && <Badge className="bg-green-500">Won</Badge>}
+                            {stage.is_lost_stage && <Badge variant="destructive">Lost/Dropped</Badge>}
+                            {!stage.is_active && <Badge variant="secondary">Inactive</Badge>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingStage(stage);
+                                setValidationError(null);
+                                setShowStageModal(true);
+                              }}
+                              aria-label={`Edit ${stage.stage_name}`}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => setStageToDelete(stage)}
+                              aria-label={`Delete ${stage.stage_name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditingStage(stage);
-                      setValidationError(null);
-                      setShowStageModal(true);
-                    }}
-                    aria-label={`Edit ${stage.stage_name}`}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => setStageToDelete(stage)}
-                    aria-label={`Delete ${stage.stage_name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         </CardContent>
       </Card>
 
@@ -409,48 +505,72 @@ const PipelineSettings = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {statuses.map((status) => (
-              <div
-                key={status.id}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: status.status_color }}
-                    aria-label={`Color: ${colorOptions.find(c => c.hex === status.status_color)?.name || status.status_color}`}
-                  />
-                  <span className="font-medium">{status.status_name}</span>
-                  {status.is_converted_status && <Badge className="bg-green-500">Converted</Badge>}
-                  {!status.is_active && <Badge variant="secondary">Inactive</Badge>}
+          <DragDropContext onDragEnd={handleStatusDragEnd}>
+            <Droppable droppableId="statuses">
+              {(provided) => (
+                <div 
+                  className="space-y-2" 
+                  {...provided.droppableProps} 
+                  ref={provided.innerRef}
+                >
+                  {statuses.map((status, index) => (
+                    <Draggable key={status.id} draggableId={status.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                            snapshot.isDragging ? 'bg-muted shadow-md' : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div 
+                              {...provided.dragHandleProps}
+                              className="cursor-grab active:cursor-grabbing"
+                            >
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: status.status_color }}
+                              aria-label={`Color: ${colorOptions.find(c => c.hex === status.status_color)?.name || status.status_color}`}
+                            />
+                            <span className="font-medium">{status.status_name}</span>
+                            {status.is_converted_status && <Badge className="bg-green-500">Converted</Badge>}
+                            {!status.is_active && <Badge variant="secondary">Inactive</Badge>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingStatus(status);
+                                setValidationError(null);
+                                setShowStatusModal(true);
+                              }}
+                              aria-label={`Edit ${status.status_name}`}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => setStatusToDelete(status)}
+                              aria-label={`Delete ${status.status_name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditingStatus(status);
-                      setValidationError(null);
-                      setShowStatusModal(true);
-                    }}
-                    aria-label={`Edit ${status.status_name}`}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => setStatusToDelete(status)}
-                    aria-label={`Delete ${status.status_name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         </CardContent>
       </Card>
 

@@ -24,6 +24,7 @@ import { TablePagination } from "@/components/shared/TablePagination";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { getMeetingStatus } from "@/utils/meetingStatus";
+import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
 
 type SortColumn = 'subject' | 'date' | 'time' | 'lead_contact' | 'status' | null;
 type SortDirection = 'asc' | 'desc';
@@ -38,6 +39,8 @@ interface Meeting {
   attendees?: unknown;
   lead_id?: string | null;
   contact_id?: string | null;
+  account_id?: string | null;
+  deal_id?: string | null;
   created_by?: string | null;
   created_at?: string | null;
   status: string;
@@ -65,7 +68,7 @@ const Meetings = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
-  const [viewingMeetingId, setViewingMeetingId] = useState<string | null>(null);
+  const [viewingMeeting, setViewingMeeting] = useState<Meeting | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [meetingToDelete, setMeetingToDelete] = useState<string | null>(null);
   const [selectedMeetings, setSelectedMeetings] = useState<string[]>([]);
@@ -714,8 +717,7 @@ const Meetings = () => {
                                   label: "View",
                                   icon: <Eye className="w-4 h-4" />,
                                   onClick: () => {
-                                    setEditingMeeting(meeting);
-                                    setShowModal(true);
+                                    setViewingMeeting(meeting);
                                   }
                                 },
                                 {
@@ -775,6 +777,18 @@ const Meetings = () => {
       fetchMeetings();
       setEditingMeeting(null);
     }} />
+
+      <MeetingDetailModal 
+        open={!!viewingMeeting} 
+        onOpenChange={(open) => !open && setViewingMeeting(null)} 
+        meeting={viewingMeeting}
+        onEdit={(meeting) => {
+          setViewingMeeting(null);
+          setEditingMeeting(meeting);
+          setShowModal(true);
+        }}
+        onUpdate={fetchMeetings}
+      />
 
       <MeetingColumnCustomizer
         open={showColumnCustomizer}

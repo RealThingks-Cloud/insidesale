@@ -24,7 +24,7 @@ interface ContactColumnCustomizerProps {
 // Updated default columns with all available fields
 export const defaultContactColumns: ContactColumnConfig[] = [
   { field: 'contact_name', label: 'Contact Name', visible: true, order: 0 },
-  { field: 'company_name', label: 'Company Name', visible: true, order: 1 },
+  { field: 'account_company_name', label: 'Company Name', visible: true, order: 1 },
   { field: 'position', label: 'Position', visible: true, order: 2 },
   { field: 'email', label: 'Email', visible: true, order: 3 },
   { field: 'phone_no', label: 'Phone', visible: true, order: 4 },
@@ -41,6 +41,7 @@ export const defaultContactColumns: ContactColumnConfig[] = [
   { field: 'email_opens', label: 'Email Opens', visible: false, order: 15 },
   { field: 'email_clicks', label: 'Email Clicks', visible: false, order: 16 },
   { field: 'last_contacted_at', label: 'Last Contacted', visible: false, order: 17 },
+  { field: 'created_time', label: 'Created Date', visible: false, order: 18 },
 ];
 
 export const ContactColumnCustomizer = ({
@@ -57,9 +58,14 @@ export const ContactColumnCustomizer = ({
   useEffect(() => {
     const existingFields = new Set(columns.map(c => c.field));
     const missingColumns = defaultContactColumns.filter(dc => !existingFields.has(dc.field));
-
-    if (missingColumns.length > 0) {
-      setLocalColumns([...columns, ...missingColumns]);
+    
+    // Filter out invalid columns that are not in the default columns list
+    const validColumns = columns.filter(c => 
+      defaultContactColumns.some(dc => dc.field === c.field)
+    );
+    
+    if (missingColumns.length > 0 || validColumns.length !== columns.length) {
+      setLocalColumns([...validColumns, ...missingColumns]);
     } else {
       setLocalColumns(columns);
     }

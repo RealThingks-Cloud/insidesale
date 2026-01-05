@@ -21,7 +21,7 @@ import { LeadColumnCustomizer, LeadColumnConfig, defaultLeadColumns } from "./Le
 import { LeadStatusFilter } from "./LeadStatusFilter";
 import { ConvertToDealModal } from "./ConvertToDealModal";
 import { LeadDeleteConfirmDialog } from "./LeadDeleteConfirmDialog";
-import { AccountViewModal } from "./AccountViewModal";
+import { AccountDetailModalById } from "./accounts/AccountDetailModalById";
 import { SendEmailModal, EmailRecipient } from "./SendEmailModal";
 import { MeetingModal } from "./MeetingModal";
 import { TaskModal } from "./tasks/TaskModal";
@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 // Export ref interface for parent component
 export interface LeadTableRef {
   handleBulkDelete: (deleteLinkedRecords?: boolean) => Promise<void>;
+  getSelectedLeadsForEmail: () => { id: string; name: string; email: string }[];
 }
 
 interface Lead {
@@ -439,9 +440,21 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
     }
   };
 
-  // Expose handleBulkDelete to parent via ref
+  // Get selected leads for email
+  const getSelectedLeadsForEmail = () => {
+    return leads
+      .filter(lead => selectedLeads.includes(lead.id) && lead.email)
+      .map(lead => ({
+        id: lead.id,
+        name: lead.lead_name,
+        email: lead.email!,
+      }));
+  };
+
+  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
-    handleBulkDelete
+    handleBulkDelete,
+    getSelectedLeadsForEmail
   }), [selectedLeads, leads]);
 
   const handleSelectAll = (checked: boolean) => {
@@ -910,7 +923,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
         leadName={leadToDelete?.lead_name} 
       />
 
-      <AccountViewModal 
+      <AccountDetailModalById 
         open={accountViewOpen} 
         onOpenChange={setAccountViewOpen} 
         accountId={viewAccountId} 

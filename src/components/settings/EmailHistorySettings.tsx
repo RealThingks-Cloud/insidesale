@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Mail, Search, Eye, MousePointer, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Mail, Search, Eye, MousePointer, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight, X, RotateCcw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface EmailHistoryRecord {
@@ -34,12 +36,14 @@ const ITEMS_PER_PAGE = 10;
 
 const EmailHistorySettings = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [emails, setEmails] = useState<EmailHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedEmail, setSelectedEmail] = useState<EmailHistoryRecord | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEmailHistory();
@@ -67,6 +71,52 @@ const EmailHistorySettings = () => {
       console.error('Error fetching email history:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetryEmail = async (email: EmailHistoryRecord, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    setRetryingEmailId(email.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: email.recipient_email,
+          subject: email.subject,
+          body: email.body,
+          recipientName: email.recipient_name,
+          contactId: email.contact_id,
+          leadId: email.lead_id,
+          accountId: email.account_id,
+        }
+      });
+
+      if (error) throw error;
+
+      // Update the email status in the database
+      await supabase
+        .from('email_history')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', email.id);
+
+      toast({
+        title: "Email Sent",
+        description: `Email to ${email.recipient_email} has been resent successfully.`,
+      });
+
+      // Refresh the list
+      fetchEmailHistory();
+    } catch (error: any) {
+      console.error('Error retrying email:', error);
+      toast({
+        title: "Retry Failed",
+        description: error.message || "Failed to resend email. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingEmailId(null);
     }
   };
 
@@ -131,8 +181,8 @@ const EmailHistorySettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Email History</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-lg font-semibold tracking-tight">Email History</h2>
+        <p className="text-sm text-muted-foreground">
           View all emails you've sent to contacts, leads, and accounts with tracking details.
         </p>
       </div>
@@ -140,48 +190,48 @@ const EmailHistorySettings = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
-          <CardContent className="pt-4">
+          <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Total Sent</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.total}</p>
+            <p className="text-xl font-bold mt-1">{stats.total}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
+          <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Opened</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.opened}</p>
+            <p className="text-xl font-bold mt-1">{stats.opened}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
+          <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <MousePointer className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Clicked</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.clicked}</p>
+            <p className="text-xl font-bold mt-1">{stats.clicked}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
+          <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-primary" />
               <span className="text-sm text-muted-foreground">Open Rate</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.openRate}%</p>
+            <p className="text-xl font-bold mt-1">{stats.openRate}%</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
+          <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <MousePointer className="h-4 w-4 text-primary" />
               <span className="text-sm text-muted-foreground">Click Rate</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.clickRate}%</p>
+            <p className="text-xl font-bold mt-1">{stats.clickRate}%</p>
           </CardContent>
         </Card>
       </div>
@@ -248,6 +298,7 @@ const EmailHistorySettings = () => {
                       <TableHead>Status</TableHead>
                       <TableHead className="text-center">Opens</TableHead>
                       <TableHead className="text-center">Clicks</TableHead>
+                      <TableHead className="w-[60px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -291,6 +342,28 @@ const EmailHistorySettings = () => {
                             <span className={email.click_count ? "text-primary font-medium" : "text-muted-foreground"}>
                               {email.click_count || 0}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            {email.status === 'failed' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={(e) => handleRetryEmail(email, e)}
+                                    disabled={retryingEmailId === email.id}
+                                  >
+                                    {retryingEmailId === email.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Retry sending</TooltipContent>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -426,6 +499,29 @@ const EmailHistorySettings = () => {
                   </Badge>
                 </div>
               </div>
+
+              {/* Retry Button for Failed Emails */}
+              {selectedEmail.status === 'failed' && (
+                <div className="pt-4 border-t">
+                  <Button
+                    onClick={() => handleRetryEmail(selectedEmail)}
+                    disabled={retryingEmailId === selectedEmail.id}
+                    className="w-full"
+                  >
+                    {retryingEmailId === selectedEmail.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Retry Sending Email
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

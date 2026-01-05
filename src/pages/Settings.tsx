@@ -120,8 +120,8 @@ const Settings = () => {
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Tab Navigation */}
-      <div className="flex-shrink-0 border-b bg-background">
-        <div className="px-6 pt-4">
+      <div className="flex-shrink-0 border-b bg-background h-16 flex items-end">
+        <div className="px-6">
           <nav className="flex gap-1" role="tablist" aria-label="Settings sections">
             {visibleTabs.map((tab, index) => {
               const Icon = tab.icon;

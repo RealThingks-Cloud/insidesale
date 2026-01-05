@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
+import { useDuplicateDetection } from "@/hooks/useDuplicateDetection";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X, ChevronDown } from "lucide-react";
+import { DuplicateWarning } from "./shared/DuplicateWarning";
+
+// Helper function for URL validation
+const normalizeUrl = (url: string) => {
+  if (!url) return url;
+  if (!/^https?:\/\//i.test(url)) {
+    return `https://${url}`;
+  }
+  return url;
+};
+
+// Phone number validation regex - allows various international formats
+const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,4}[-\s\.]?[0-9]{1,9}$/;
 
 const contactSchema = z.object({
   contact_name: z.string()
@@ -23,8 +37,32 @@ const contactSchema = z.object({
   account_id: z.string().optional(),
   position: z.string().max(100, "Position must be less than 100 characters").optional(),
   email: z.string().email("Please enter a valid email address (e.g., name@company.com)").optional().or(z.literal("")),
-  phone_no: z.string().max(20, "Phone number must be less than 20 characters").optional(),
-  linkedin: z.string().url("Please enter a valid LinkedIn URL (e.g., https://linkedin.com/in/username)").optional().or(z.literal("")),
+  phone_no: z.string()
+    .refine((val) => !val || phoneRegex.test(val.replace(/\s/g, '')), {
+      message: "Please enter a valid phone number (e.g., +1 234 567 8900)",
+    })
+    .optional(),
+  linkedin: z.string()
+    .refine((val) => !val || val.includes('linkedin.com'), {
+      message: "Please enter a valid LinkedIn URL (e.g., https://linkedin.com/in/username)",
+    })
+    .optional()
+    .or(z.literal("")),
+  website: z.string()
+    .refine((val) => {
+      if (!val) return true;
+      const normalized = normalizeUrl(val);
+      try {
+        new URL(normalized);
+        return true;
+      } catch {
+        return false;
+      }
+    }, {
+      message: "Please enter a valid website URL (e.g., company.com or https://company.com)",
+    })
+    .optional()
+    .or(z.literal("")),
   contact_source: z.string().optional(),
   description: z.string().max(1000, "Description must be less than 1000 characters").optional(),
 });
@@ -86,6 +124,30 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // Duplicate detection for contacts
+  const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
+    table: 'contacts',
+    nameField: 'contact_name',
+    emailField: 'email',
+  });
+
+  // Debounced duplicate check
+  const debouncedCheckDuplicates = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return (name: string, email?: string) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          // Only check for new contacts, not when editing
+          if (!contact) {
+            checkDuplicates(name, email);
+          }
+        }, 500);
+      };
+    })(),
+    [contact, checkDuplicates]
+  );
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => 
@@ -177,7 +239,8 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         position: data.position || null,
         email: data.email || null,
         phone_no: data.phone_no || null,
-        linkedin: data.linkedin || null,
+        linkedin: data.linkedin ? normalizeUrl(data.linkedin) : null,
+        website: data.website ? normalizeUrl(data.website) : null,
         contact_source: data.contact_source || null,
         description: data.description || null,
         tags: selectedTags,
@@ -242,7 +305,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {contact ? "Edit Contact" : "Add New Contact"}
@@ -251,6 +314,11 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Duplicate Warning */}
+            {!contact && duplicates.length > 0 && (
+              <DuplicateWarning duplicates={duplicates} entityType="contact" />
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -259,7 +327,14 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                   <FormItem>
                     <FormLabel>Contact Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Contact Name" {...field} />
+                      <Input 
+                        placeholder="Contact Name" 
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          debouncedCheckDuplicates(e.target.value, form.getValues('email'));
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -325,7 +400,15 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="email@example.com" {...field} />
+                      <Input 
+                        type="email" 
+                        placeholder="email@example.com" 
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          debouncedCheckDuplicates(form.getValues('contact_name'), e.target.value);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

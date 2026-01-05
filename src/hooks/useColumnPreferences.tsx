@@ -113,7 +113,21 @@ export const useColumnPreferences = ({ moduleName, defaultColumns }: UseColumnPr
   });
 
   // Use saved columns if available, otherwise use defaults
-  const columns = savedColumns || defaultColumns;
+  // Filter out any columns that no longer exist in defaultColumns and add any new ones
+  const columns = (() => {
+    if (!savedColumns) return defaultColumns;
+    
+    const validFields = new Set(defaultColumns.map(dc => dc.field));
+    
+    // Filter saved columns to only include valid fields
+    const validSavedColumns = savedColumns.filter(sc => validFields.has(sc.field));
+    
+    // Add any new fields from defaultColumns that aren't in saved
+    const savedFields = new Set(validSavedColumns.map(sc => sc.field));
+    const missingColumns = defaultColumns.filter(dc => !savedFields.has(dc.field));
+    
+    return [...validSavedColumns, ...missingColumns];
+  })();
 
   return {
     columns,

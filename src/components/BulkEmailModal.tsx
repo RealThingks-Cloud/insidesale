@@ -16,7 +16,7 @@ export interface BulkEmailRecipient {
   id: string;
   name: string;
   email?: string;
-  type: 'lead' | 'contact';
+  type: 'lead' | 'contact' | 'account';
 }
 
 interface EmailTemplate {
@@ -147,6 +147,7 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
           sent_by: user?.id,
           lead_id: recipient.type === 'lead' ? recipient.id : null,
           contact_id: recipient.type === 'contact' ? recipient.id : null,
+          account_id: recipient.type === 'account' ? recipient.id : null,
           status: 'sent',
         });
 

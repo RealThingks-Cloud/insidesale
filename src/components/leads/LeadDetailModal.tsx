@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,9 @@ import { EntityEmailHistory } from '@/components/shared/EntityEmailHistory';
 import { SendEmailModal } from '@/components/SendEmailModal';
 import { LeadActivityTimeline } from './LeadActivityTimeline';
 import { LeadActivityLogModal } from './LeadActivityLogModal';
+import { MeetingModal } from '@/components/MeetingModal';
+import { TaskModal } from '@/components/tasks/TaskModal';
+import { getLeadStatusColor } from '@/utils/leadStatusUtils';
 import {
   User,
   Building2,
@@ -23,11 +28,12 @@ import {
   MapPin,
   Clock,
   Send,
-  History,
   Plus,
-  Activity,
   Factory,
   Pencil,
+  CalendarPlus,
+  CheckSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -35,6 +41,7 @@ interface Lead {
   id: string;
   lead_name: string;
   company_name: string | null;
+  account_id?: string | null;
   position: string | null;
   email: string | null;
   phone_no: string | null;
@@ -47,6 +54,18 @@ interface Lead {
   lead_status: string | null;
   created_time: string | null;
   modified_time?: string | null;
+}
+
+interface Account {
+  id: string;
+  company_name: string;
+  industry: string | null;
+  website: string | null;
+  country: string | null;
+  region: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
 }
 
 interface LeadDetailModalProps {
@@ -67,7 +86,29 @@ export const LeadDetailModal = ({
   const [activeTab, setActiveTab] = useState('overview');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Fetch linked account details
+  const { data: linkedAccount } = useQuery({
+    queryKey: ['linked-account', lead?.account_id],
+    queryFn: async () => {
+      if (!lead?.account_id) return null;
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('id, company_name, industry, website, country, region, phone, email, status')
+        .eq('id', lead.account_id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching linked account:', error);
+        return null;
+      }
+      return data as Account;
+    },
+    enabled: !!lead?.account_id,
+  });
 
   if (!lead) return null;
 
@@ -76,22 +117,11 @@ export const LeadDetailModal = ({
     onUpdate?.();
   };
 
-  const getStatusColor = (status: string | null) => {
-    switch (status?.toLowerCase()) {
-      case 'new': 
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800';
-      case 'attempted': 
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800';
-      case 'follow-up': 
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800';
-      case 'qualified': 
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800';
-      case 'disqualified': 
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800';
-      default: 
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400 border border-gray-200 dark:border-gray-700';
-    }
-  };
+  // Get display company name from linked account or lead's legacy field
+  const displayCompanyName = linkedAccount?.company_name || lead.company_name;
+  const displayIndustry = linkedAccount?.industry || lead.industry;
+  const displayCountry = linkedAccount?.country || lead.country;
+  const displayWebsite = linkedAccount?.website || lead.website;
 
   return (
     <>
@@ -106,13 +136,13 @@ export const LeadDetailModal = ({
                 </DialogTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                   {lead.position && <span>{lead.position}</span>}
-                  {lead.position && lead.company_name && <span>at</span>}
-                  {lead.company_name && (
-                    <span className="font-medium">{lead.company_name}</span>
+                  {lead.position && displayCompanyName && <span>at</span>}
+                  {displayCompanyName && (
+                    <span className="font-medium">{displayCompanyName}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge className={getStatusColor(lead.lead_status)}>
+                  <Badge className={getLeadStatusColor(lead.lead_status)}>
                     {lead.lead_status || 'New'}
                   </Badge>
                   {lead.contact_source && (
@@ -120,7 +150,7 @@ export const LeadDetailModal = ({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {onEdit && (
                   <Button
                     variant="outline"
@@ -129,9 +159,27 @@ export const LeadDetailModal = ({
                     className="gap-2"
                   >
                     <Pencil className="h-4 w-4" />
-                    Update
+                    Edit
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMeetingModal(true)}
+                  className="gap-2"
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Meeting
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTaskModal(true)}
+                  className="gap-2"
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  Task
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -139,7 +187,7 @@ export const LeadDetailModal = ({
                   className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
-                  Log Activity
+                  Activity
                 </Button>
               </div>
             </div>
@@ -184,16 +232,16 @@ export const LeadDetailModal = ({
                         </a>
                       </div>
                     )}
-                    {lead.website && (
+                    {displayWebsite && (
                       <div className="flex items-center gap-2 text-sm">
                         <Globe className="h-4 w-4 text-muted-foreground" />
                         <a 
-                          href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} 
+                          href={displayWebsite.startsWith('http') ? displayWebsite : `https://${displayWebsite}`} 
                           target="_blank" 
                           rel="noopener noreferrer" 
                           className="text-primary hover:underline"
                         >
-                          {lead.website}
+                          {displayWebsite}
                         </a>
                       </div>
                     )}
@@ -205,22 +253,22 @@ export const LeadDetailModal = ({
                     <CardTitle className="text-base">Company Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {lead.company_name && (
+                    {displayCompanyName && (
                       <div className="flex items-center gap-2 text-sm">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>{lead.company_name}</span>
+                        <span>{displayCompanyName}</span>
                       </div>
                     )}
-                    {lead.industry && (
+                    {displayIndustry && (
                       <div className="flex items-center gap-2 text-sm">
                         <Factory className="h-4 w-4 text-muted-foreground" />
-                        <span>{lead.industry}</span>
+                        <span>{displayIndustry}</span>
                       </div>
                     )}
-                    {lead.country && (
+                    {displayCountry && (
                       <div className="flex items-center gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{lead.country}</span>
+                        <span>{displayCountry}</span>
                       </div>
                     )}
                   </CardContent>
@@ -277,14 +325,69 @@ export const LeadDetailModal = ({
             <TabsContent value="related" className="mt-4">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Related Records</CardTitle>
+                  <CardTitle className="text-base">Linked Account</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No linked account</p>
-                    <p className="text-xs mt-1">Convert this lead to link it to an account</p>
-                  </div>
+                  {linkedAccount ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Building2 className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{linkedAccount.company_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {[linkedAccount.industry, linkedAccount.country].filter(Boolean).join(' • ')}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" className="gap-2">
+                          <ExternalLink className="h-4 w-4" />
+                          View Account
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                        {linkedAccount.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <span>{linkedAccount.email}</span>
+                          </div>
+                        )}
+                        {linkedAccount.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <span>{linkedAccount.phone}</span>
+                          </div>
+                        )}
+                        {linkedAccount.website && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Globe className="h-4 w-4 text-muted-foreground" />
+                            <a 
+                              href={linkedAccount.website.startsWith('http') ? linkedAccount.website : `https://${linkedAccount.website}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              {linkedAccount.website}
+                            </a>
+                          </div>
+                        )}
+                        {linkedAccount.region && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>{linkedAccount.region}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No linked account</p>
+                      <p className="text-xs mt-1">Link this lead to an account for full company details</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -305,11 +408,51 @@ export const LeadDetailModal = ({
         recipient={{
           name: lead.lead_name,
           email: lead.email || undefined,
-          company_name: lead.company_name || undefined,
+          company_name: displayCompanyName || undefined,
           position: lead.position || undefined,
         }}
         leadId={lead.id}
         onEmailSent={onUpdate}
+      />
+
+      <MeetingModal
+        open={showMeetingModal}
+        onOpenChange={setShowMeetingModal}
+        initialLeadId={lead.id}
+        onSuccess={() => {
+          setShowMeetingModal(false);
+          onUpdate?.();
+        }}
+      />
+
+      <TaskModal
+        open={showTaskModal}
+        onOpenChange={setShowTaskModal}
+        onSubmit={async (data) => {
+          // Import and use createTask from useTasks if needed
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { data: userData } = await supabase.auth.getUser();
+          if (!userData?.user?.id) return null;
+          
+          const { data: taskData, error } = await supabase
+            .from('tasks')
+            .insert({
+              ...data,
+              lead_id: lead.id,
+              module_type: 'leads',
+              created_by: userData.user.id,
+            })
+            .select()
+            .single();
+
+          if (!error && taskData) {
+            setShowTaskModal(false);
+            onUpdate?.();
+            return taskData;
+          }
+          return null;
+        }}
+        context={{ module: 'leads', recordId: lead.id, recordName: lead.lead_name }}
       />
     </>
   );

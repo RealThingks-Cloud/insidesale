@@ -1,16 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
+import { useDuplicateDetection } from "@/hooks/useDuplicateDetection";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { LEAD_SOURCES } from "@/utils/leadStatusUtils";
+import { DuplicateWarning } from "./shared/DuplicateWarning";
 
 const leadSchema = z.object({
   lead_name: z.string()
@@ -33,15 +37,11 @@ interface Lead {
   id: string;
   lead_name: string;
   account_id?: string;
-  company_name?: string;
   position?: string;
   email?: string;
   phone_no?: string;
   linkedin?: string;
-  website?: string;
   contact_source?: string;
-  industry?: string;
-  country?: string;
   description?: string;
   lead_status?: string;
 }
@@ -51,6 +51,13 @@ interface Account {
   company_name: string;
 }
 
+interface LeadStatus {
+  id: string;
+  status_name: string;
+  status_color: string | null;
+  status_order: number;
+}
+
 interface LeadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,29 +65,61 @@ interface LeadModalProps {
   onSuccess: () => void;
 }
 
-const leadSources = [
-  "LinkedIn",
-  "Website",
-  "Referral", 
-  "Social Media",
-  "Email Campaign",
-  "Other"
-];
-
-const leadStatuses = [
-  "New",
-  "Attempted",
-  "Follow-up",
-  "Qualified",
-  "Disqualified"
-];
-
 export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProps) => {
   const { toast } = useToast();
   const { logCreate, logUpdate } = useCRUDAudit();
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
+
+  // Duplicate detection for leads
+  const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
+    table: 'leads',
+    nameField: 'lead_name',
+    emailField: 'email',
+  });
+
+  // Debounced duplicate check
+  const debouncedCheckDuplicates = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return (name: string, email?: string) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          // Only check for new leads, not when editing
+          if (!lead) {
+            checkDuplicates(name, email);
+          }
+        }, 500);
+      };
+    })(),
+    [lead, checkDuplicates]
+  );
+
+  // Fetch lead statuses from database
+  const { data: leadStatuses = [] } = useQuery({
+    queryKey: ['lead-statuses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_statuses')
+        .select('id, status_name, status_color, status_order')
+        .eq('is_active', true)
+        .order('status_order', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching lead statuses:', error);
+        // Fallback to default statuses
+        return [
+          { id: '1', status_name: 'New', status_color: '#3b82f6', status_order: 0 },
+          { id: '2', status_name: 'Attempted', status_color: '#f59e0b', status_order: 1 },
+          { id: '3', status_name: 'Follow-up', status_color: '#64748b', status_order: 2 },
+          { id: '4', status_name: 'Qualified', status_color: '#10b981', status_order: 3 },
+          { id: '5', status_name: 'Disqualified', status_color: '#ef4444', status_order: 4 },
+        ] as LeadStatus[];
+      }
+      return data as LeadStatus[];
+    },
+  });
 
   const form = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
@@ -250,7 +289,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {lead ? "Edit Lead" : "Add New Lead"}
@@ -259,6 +298,11 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Duplicate Warning */}
+            {!lead && duplicates.length > 0 && (
+              <DuplicateWarning duplicates={duplicates} entityType="lead" />
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -267,7 +311,14 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                   <FormItem>
                     <FormLabel>Lead Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Lead Name" {...field} />
+                      <Input 
+                        placeholder="Lead Name" 
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          debouncedCheckDuplicates(e.target.value, form.getValues('email'));
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -335,7 +386,15 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="email@example.com" {...field} />
+                      <Input 
+                        type="email" 
+                        placeholder="email@example.com" 
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          debouncedCheckDuplicates(form.getValues('lead_name'), e.target.value);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -383,7 +442,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {leadSources.map((source) => (
+                        {LEAD_SOURCES.map((source) => (
                           <SelectItem key={source} value={source}>
                             {source}
                           </SelectItem>
@@ -409,8 +468,16 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                       </FormControl>
                       <SelectContent>
                         {leadStatuses.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status}
+                          <SelectItem key={status.id} value={status.status_name}>
+                            <div className="flex items-center gap-2">
+                              {status.status_color && (
+                                <span 
+                                  className="w-2 h-2 rounded-full" 
+                                  style={{ backgroundColor: status.status_color }}
+                                />
+                              )}
+                              {status.status_name}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>

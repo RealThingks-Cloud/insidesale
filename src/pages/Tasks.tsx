@@ -236,6 +236,8 @@ const Tasks = () => {
             onToggleComplete={handleToggleComplete} 
             initialStatusFilter={initialStatusFilter} 
             initialOwnerFilter={initialOwnerFilter}
+            selectedTasks={selectedTasks}
+            onSelectionChange={setSelectedTasks}
           />
         )}
         {viewMode === 'kanban' && (

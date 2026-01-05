@@ -11,7 +11,7 @@ interface LeadStageFormProps {
 }
 
 export const LeadStageForm = ({ formData, onFieldChange, onLeadSelect, fieldErrors }: LeadStageFormProps) => {
-  const fields = ['project_name', 'lead_name', 'customer_name', 'region', 'lead_owner', 'priority'];
+  const fields = ['project_name', 'lead_name', 'customer_name', 'account_id', 'contact_id', 'region', 'lead_owner', 'priority'];
 
   return (
     <Card>

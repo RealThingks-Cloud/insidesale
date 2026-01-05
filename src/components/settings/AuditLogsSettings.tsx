@@ -411,6 +411,7 @@ const AuditLogsSettings = () => {
                 Security Audit Logs
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
+                Track all user actions, data changes, and system events for compliance and security monitoring.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -426,12 +427,13 @@ const AuditLogsSettings = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-64">
-              <Input placeholder="Search logs..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} inputSize="control" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input placeholder="Search logs..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" inputSize="control" />
             </div>
             <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
               <SelectContent>

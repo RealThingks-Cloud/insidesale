@@ -509,7 +509,7 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
   const { data: accountsData, isLoading: accountsLoading } = useQuery({
     queryKey: ['user-accounts-enhanced', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from('accounts').select('id, company_name, segment, status, created_at, total_revenue').eq('created_by', user?.id);
+      const { data, error } = await supabase.from('accounts').select('id, company_name, status, created_at').eq('created_by', user?.id);
       if (error) throw error;
       const accounts = data || [];
       const byStatus = {

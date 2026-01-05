@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
+import { useDuplicateDetection } from "@/hooks/useDuplicateDetection";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X, ChevronDown } from "lucide-react";
 import { Account } from "./AccountTable";
+import { DuplicateWarning } from "./shared/DuplicateWarning";
 
 const accountSchema = z.object({
   company_name: z.string()
@@ -24,13 +26,21 @@ const accountSchema = z.object({
   email: z.string().email("Please enter a valid email address (e.g., contact@company.com)").optional().or(z.literal("")),
   region: z.string().optional(),
   country: z.string().optional(),
-  website: z.string().url("Please enter a valid URL (e.g., https://company.com)").optional().or(z.literal("")),
+  website: z.string()
+    .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || /^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}/.test(val), {
+      message: "Please enter a valid URL (e.g., https://company.com or company.com)"
+    })
+    .optional()
+    .or(z.literal("")),
   company_type: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().max(2000, "Notes must be less than 2000 characters").optional(),
   industry: z.string().optional(),
-  phone: z.string().max(20, "Phone number must be less than 20 characters").optional(),
-  segment: z.string().optional(),
+  phone: z.string()
+    .refine((val) => !val || /^[+]?[\d\s\-().]{7,20}$/.test(val), {
+      message: "Please enter a valid phone number (e.g., +1 234 567 8900)"
+    })
+    .optional(),
 });
 
 type AccountFormData = z.infer<typeof accountSchema>;
@@ -70,7 +80,7 @@ const industries = [
 
 const companyTypes = ["OEM", "Tier-1", "Tier-2", "Startup", "Enterprise", "SMB", "Government", "Non-Profit", "Other"];
 
-const segments = ["prospect", "customer", "partner", "vendor", "competitor"];
+
 
 export const AccountModal = ({ open, onOpenChange, account, onSuccess }: AccountModalProps) => {
   const { toast } = useToast();
@@ -78,6 +88,30 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+
+  // Duplicate detection for accounts
+  const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
+    table: 'accounts',
+    nameField: 'company_name',
+    emailField: 'email',
+  });
+
+  // Debounced duplicate check
+  const debouncedCheckDuplicates = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return (name: string, email?: string) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          // Only check for new accounts, not when editing
+          if (!account) {
+            checkDuplicates(name, email);
+          }
+        }, 500);
+      };
+    })(),
+    [account, checkDuplicates]
+  );
 
   const form = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
@@ -92,7 +126,6 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
       notes: "",
       industry: "",
       phone: "",
-      segment: "prospect",
     },
   });
 
@@ -119,7 +152,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
         notes: account.notes || "",
         industry: account.industry || "",
         phone: account.phone || "",
-        segment: account.segment || "prospect",
+        
       });
       setSelectedTags(account.tags || []);
       if (account.region && regionCountries[account.region]) {
@@ -137,7 +170,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
         notes: "",
         industry: "",
         phone: "",
-        segment: "prospect",
+        
       });
       setSelectedTags([]);
     }
@@ -163,6 +196,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
         return;
       }
 
+      // Only set account_owner on create, not update
       const accountData = {
         company_name: data.company_name,
         email: data.email || null,
@@ -175,9 +209,9 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
         notes: data.notes || null,
         industry: data.industry || null,
         phone: data.phone || null,
-        segment: data.segment || 'prospect',
-        account_owner: user.data.user.id,
         modified_by: user.data.user.id,
+        // Only set account_owner on new accounts
+        ...(account ? {} : { account_owner: user.data.user.id }),
       };
 
       if (account) {
@@ -241,6 +275,11 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Duplicate Warning */}
+            {!account && duplicates.length > 0 && (
+              <DuplicateWarning duplicates={duplicates} entityType="account" />
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -249,7 +288,14 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
                   <FormItem>
                     <FormLabel>Company Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Company Name" {...field} />
+                      <Input 
+                        placeholder="Company Name" 
+                        {...field} 
+                        onChange={(e) => {
+                          field.onChange(e);
+                          debouncedCheckDuplicates(e.target.value, form.getValues('email'));
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -398,30 +444,6 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="segment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Segment</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select segment" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {segments.map((seg) => (
-                          <SelectItem key={seg} value={seg}>
-                            {seg.charAt(0).toUpperCase() + seg.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}

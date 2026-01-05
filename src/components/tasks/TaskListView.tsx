@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Task, TaskStatus, TaskModuleType } from '@/types/task';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ListTodo,
+  ExternalLink,
 } from 'lucide-react';
 import { useUserDisplayNames } from '@/hooks/useUserDisplayNames';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
@@ -43,6 +45,7 @@ import { TaskDetailModal } from './TaskDetailModal';
 import { RowActionsDropdown } from '@/components/RowActionsDropdown';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 import { ClearFiltersButton } from '@/components/shared/ClearFiltersButton';
+import { getTaskStatusColor, getTaskPriorityColor, getModuleTypeColor, getTaskStatusLabel } from '@/utils/statusBadgeUtils';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -52,22 +55,11 @@ interface TaskListViewProps {
   onToggleComplete: (task: Task) => void;
   initialStatusFilter?: string;
   initialOwnerFilter?: string;
+  selectedTasks?: string[];
+  onSelectionChange?: (selectedIds: string[]) => void;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
-
-const priorityColors = {
-  high: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border-rose-200 dark:border-rose-800',
-  medium: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-  low: 'bg-slate-100 text-slate-600 dark:bg-slate-800/30 dark:text-slate-400 border-slate-200 dark:border-slate-700',
-};
-
-const statusColors = {
-  open: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  in_progress: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
-  completed: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-  cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-200 dark:border-gray-700',
-};
 
 const moduleIcons: Record<TaskModuleType, React.ElementType> = {
   accounts: Building2,
@@ -75,6 +67,14 @@ const moduleIcons: Record<TaskModuleType, React.ElementType> = {
   leads: Users,
   meetings: Calendar,
   deals: Briefcase,
+};
+
+const moduleRoutes: Record<TaskModuleType, string> = {
+  accounts: '/accounts',
+  contacts: '/contacts',
+  leads: '/leads',
+  meetings: '/meetings',
+  deals: '/deals',
 };
 
 export const TaskListView = ({
@@ -85,7 +85,10 @@ export const TaskListView = ({
   onToggleComplete,
   initialStatusFilter = 'all',
   initialOwnerFilter = 'all',
+  selectedTasks: externalSelectedTasks,
+  onSelectionChange,
 }: TaskListViewProps) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -95,6 +98,13 @@ export const TaskListView = ({
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  
+  // Internal selection state - used when no external selection is provided
+  const [internalSelectedTasks, setInternalSelectedTasks] = useState<string[]>([]);
+  
+  // Use external selection if provided, otherwise use internal
+  const selectedTasks = externalSelectedTasks ?? internalSelectedTasks;
+  const setSelectedTasks = onSelectionChange ?? setInternalSelectedTasks;
 
   // Sync statusFilter when initialStatusFilter prop changes (from URL)
   useEffect(() => {
@@ -147,9 +157,12 @@ export const TaskListView = ({
     return title.split(' ').slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
   };
 
-  // Generate consistent color from title
+  // Generate consistent vibrant color from title
   const getAvatarColor = (name: string) => {
-    const colors = ['bg-slate-500', 'bg-slate-600', 'bg-zinc-500', 'bg-gray-500', 'bg-stone-500', 'bg-neutral-500', 'bg-slate-700', 'bg-zinc-600'];
+    const colors = [
+      'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 
+      'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'
+    ];
     const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     return colors[index];
   };
@@ -278,6 +291,21 @@ export const TaskListView = ({
           <Table>
             <TableHeader>
               <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
+                <TableHead className="w-10 font-bold text-foreground">
+                  <Checkbox
+                    checked={paginatedTasks.length > 0 && paginatedTasks.every(t => selectedTasks.includes(t.id))}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        const newSelected = [...new Set([...selectedTasks, ...paginatedTasks.map(t => t.id)])];
+                        setSelectedTasks(newSelected);
+                      } else {
+                        const paginatedIds = paginatedTasks.map(t => t.id);
+                        setSelectedTasks(selectedTasks.filter(id => !paginatedIds.includes(id)));
+                      }
+                    }}
+                    aria-label="Select all on page"
+                  />
+                </TableHead>
                 <TableHead className="w-10 font-bold text-foreground"></TableHead>
                 <TableHead className="font-bold text-foreground px-4 py-3">Task</TableHead>
                 <TableHead className="font-bold text-foreground px-4 py-3">Status</TableHead>
@@ -292,7 +320,7 @@ export const TaskListView = ({
             <TableBody>
               {paginatedTasks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12">
+                  <TableCell colSpan={10} className="text-center py-12">
                     <div className="flex flex-col items-center gap-3">
                       <ListTodo className="w-10 h-10 text-muted-foreground/50" />
                       <div>
@@ -323,6 +351,19 @@ export const TaskListView = ({
                     >
                       <TableCell className="px-4 py-3">
                         <Checkbox
+                          checked={selectedTasks.includes(task.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedTasks([...selectedTasks, task.id]);
+                            } else {
+                              setSelectedTasks(selectedTasks.filter(id => id !== task.id));
+                            }
+                          }}
+                          aria-label={`Select ${task.title}`}
+                        />
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <Checkbox
                           checked={task.status === 'completed'}
                           onCheckedChange={() => onToggleComplete(task)}
                         />
@@ -338,12 +379,12 @@ export const TaskListView = ({
                         </button>
                       </TableCell>
                       <TableCell className="px-4 py-3">
-                        <Badge variant="outline" className={`whitespace-nowrap ${statusColors[task.status]}`}>
-                          {task.status.replace('_', ' ')}
+                        <Badge variant="outline" className={`whitespace-nowrap ${getTaskStatusColor(task.status)}`}>
+                          {getTaskStatusLabel(task.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="px-4 py-3">
-                        <Badge variant="outline" className={`whitespace-nowrap ${priorityColors[task.priority]}`}>
+                        <Badge variant="outline" className={`whitespace-nowrap capitalize ${getTaskPriorityColor(task.priority)}`}>
                           {task.priority}
                         </Badge>
                       </TableCell>
@@ -366,13 +407,24 @@ export const TaskListView = ({
                         </span>
                       </TableCell>
                       <TableCell className="px-4 py-3">
-                        {linkedEntity ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <linkedEntity.icon className="h-3 w-3" />
-                            <span className="truncate max-w-[100px]" title={linkedEntity.name}>
-                              {linkedEntity.name}
-                            </span>
-                          </div>
+                        {linkedEntity && task.module_type ? (
+                          <button
+                            onClick={() => {
+                              const recordId = task.account_id || task.contact_id || task.lead_id || task.meeting_id || task.deal_id;
+                              if (recordId && task.module_type) {
+                                navigate(`${moduleRoutes[task.module_type]}?viewId=${recordId}`);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 text-sm text-primary hover:underline group"
+                          >
+                            <Badge variant="outline" className={`${getModuleTypeColor(task.module_type)} capitalize gap-1`}>
+                              <linkedEntity.icon className="h-3 w-3" />
+                              <span className="truncate max-w-[80px]" title={linkedEntity.name}>
+                                {linkedEntity.name}
+                              </span>
+                            </Badge>
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
                         ) : (
                           <span className="text-center text-muted-foreground w-full block">-</span>
                         )}
@@ -423,39 +475,61 @@ export const TaskListView = ({
         </div>
       </Card>
 
-      {/* Pagination */}
-      {totalPages > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Showing {filteredTasks.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Previous
-            </Button>
-            <span className="text-sm">
-              Page {currentPage} of {totalPages || 1}
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
-              disabled={currentPage === totalPages || totalPages === 0}
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
+      {/* Pagination - Consistent with TablePagination component */}
+      <div className="flex items-center justify-between py-4 px-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">
+            Showing {filteredTasks.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
+          </span>
         </div>
-      )}
+        <div className="flex items-center gap-1">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(1)} 
+            disabled={currentPage === 1}
+            className="hidden sm:flex"
+            aria-label="Go to first page"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 -ml-2" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+            disabled={currentPage === 1}
+            aria-label="Go to previous page"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span className="hidden sm:inline ml-1">Previous</span>
+          </Button>
+          <span className="text-sm px-3 py-1 bg-muted rounded-md font-medium">
+            Page {currentPage} of {totalPages || 1}
+          </span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+            disabled={currentPage === totalPages || totalPages === 0}
+            aria-label="Go to next page"
+          >
+            <span className="hidden sm:inline mr-1">Next</span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(totalPages)} 
+            disabled={currentPage === totalPages || totalPages === 0}
+            className="hidden sm:flex"
+            aria-label="Go to last page"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4 -ml-2" />
+          </Button>
+        </div>
+      </div>
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}

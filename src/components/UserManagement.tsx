@@ -364,10 +364,19 @@ const UserManagement = () => {
               <h2 className="text-xl font-semibold">User & Access Management</h2>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>
-                <Upload className="h-4 w-4 mr-2" />
-                Bulk Import
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button variant="outline" size="sm" disabled>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Bulk Import
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Coming soon - Import users via CSV</p>
+                </TooltipContent>
+              </Tooltip>
               <Button variant="outline" size="sm" onClick={syncAndRefresh} disabled={refreshing}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh

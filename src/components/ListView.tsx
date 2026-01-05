@@ -34,6 +34,7 @@ interface ListViewProps {
   onDeleteDeals: (dealIds: string[]) => void;
   onImportDeals: (deals: Partial<Deal>[]) => void;
   initialStageFilter?: string;
+  onSelectionChange?: (selectedIds: string[]) => void;
 }
 
 export const ListView = ({ 
@@ -42,7 +43,8 @@ export const ListView = ({
   onUpdateDeal, 
   onDeleteDeals, 
   onImportDeals,
-  initialStageFilter = 'all'
+  initialStageFilter = 'all',
+  onSelectionChange
 }: ListViewProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [leadOwnerFilter, setLeadOwnerFilter] = useState("all");
@@ -74,6 +76,11 @@ export const ListView = ({
       setFilters(prev => ({ ...prev, stages: [initialStageFilter as DealStage] }));
     }
   }, [initialStageFilter]);
+
+  // Notify parent of selection changes
+  useEffect(() => {
+    onSelectionChange?.(Array.from(selectedDeals));
+  }, [selectedDeals, onSelectionChange]);
   
   // Task Modal state
   const [taskModalOpen, setTaskModalOpen] = useState(false);
@@ -186,9 +193,12 @@ export const ListView = ({
     return name.split(' ').slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
   };
 
-  // Generate consistent color from project name
+  // Generate consistent vibrant color from project name
   const getAvatarColor = (name: string) => {
-    const colors = ['bg-slate-500', 'bg-slate-600', 'bg-zinc-500', 'bg-gray-500', 'bg-stone-500', 'bg-neutral-500', 'bg-slate-700', 'bg-zinc-600'];
+    const colors = [
+      'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 
+      'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'
+    ];
     const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     return colors[index];
   };

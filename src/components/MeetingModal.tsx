@@ -307,12 +307,16 @@ interface MeetingModalProps {
   onOpenChange: (open: boolean) => void;
   meeting?: Meeting | null;
   onSuccess: () => void;
+  initialLeadId?: string;
+  initialContactId?: string;
 }
 export const MeetingModal = ({
   open,
   onOpenChange,
   meeting,
-  onSuccess
+  onSuccess,
+  initialLeadId,
+  initialContactId
 }: MeetingModalProps) => {
   const {
     user
@@ -567,7 +571,14 @@ export const MeetingModal = ({
           setEndTime(updateEndTimeFromDuration(format(defaultStart, "HH:mm"), 30));
           setDurationMode('duration');
           setTimezone(getBrowserTimezone());
-          setLinkType('lead');
+          // Set initial link type based on passed props
+          if (initialContactId) {
+            setLinkType('contact');
+          } else if (initialLeadId) {
+            setLinkType('lead');
+          } else {
+            setLinkType('lead');
+          }
           setParticipants([]);
           setEmailInput("");
           setShowParticipantsInput(false);
@@ -575,8 +586,8 @@ export const MeetingModal = ({
             subject: "",
             description: "",
             join_url: "",
-            lead_id: "",
-            contact_id: "",
+            lead_id: initialLeadId || "",
+            contact_id: initialContactId || "",
             status: "scheduled",
             outcome: ""
           });
