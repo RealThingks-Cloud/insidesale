@@ -36,8 +36,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Loader2, CalendarIcon } from 'lucide-react';
+import { Loader2, CalendarIcon, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AccountModal } from '@/components/AccountModal';
+import { ContactModal } from '@/components/ContactModal';
+import { LeadModal } from '@/components/LeadModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Generate 30-minute time slots
 const generateTimeSlots = () => {
@@ -102,6 +106,30 @@ export const TaskModal = ({
   const [selectedContact, setSelectedContact] = useState<typeof contacts[0] | null>(null);
   const [selectedLead, setSelectedLead] = useState<typeof leads[0] | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<typeof deals[0] | null>(null);
+
+  // Modal states for creating new entities
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+
+  // Handlers for when new entities are created
+  const handleAccountCreated = (newAccount: { id: string; company_name: string }) => {
+    setAccounts(prev => [...prev, newAccount].sort((a, b) => a.company_name.localeCompare(b.company_name)));
+    form.setValue('account_id', newAccount.id);
+    setAccountModalOpen(false);
+  };
+
+  const handleContactCreated = () => {
+    // Refresh contacts list
+    fetchDropdownData();
+    setContactModalOpen(false);
+  };
+
+  const handleLeadCreated = () => {
+    // Refresh leads list
+    fetchDropdownData();
+    setLeadModalOpen(false);
+  };
 
   // Fetch current user's display name
   useEffect(() => {
@@ -325,24 +353,43 @@ export const TaskModal = ({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Account</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
-                            value={field.value || ''}
-                            disabled={!!isModuleLocked}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select account" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {accounts.map(account => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.company_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-1">
+                            <Select 
+                              onValueChange={field.onChange} 
+                              value={field.value || ''}
+                              disabled={!!isModuleLocked}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Select account" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {accounts.map(account => (
+                                  <SelectItem key={account.id} value={account.id}>
+                                    {account.company_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="shrink-0"
+                                    onClick={() => setAccountModalOpen(true)}
+                                    disabled={!!isModuleLocked}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Add new account</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </FormItem>
                       )}
                     />
@@ -355,24 +402,43 @@ export const TaskModal = ({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Contact</FormLabel>
-                          <Select 
-                            onValueChange={handleContactChange} 
-                            value={field.value || ''}
-                            disabled={!!isModuleLocked}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select contact" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {contacts.map(contact => (
-                                <SelectItem key={contact.id} value={contact.id}>
-                                  {contact.contact_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-1">
+                            <Select 
+                              onValueChange={handleContactChange} 
+                              value={field.value || ''}
+                              disabled={!!isModuleLocked}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Select contact" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {contacts.map(contact => (
+                                  <SelectItem key={contact.id} value={contact.id}>
+                                    {contact.contact_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="shrink-0"
+                                    onClick={() => setContactModalOpen(true)}
+                                    disabled={!!isModuleLocked}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Add new contact</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </FormItem>
                       )}
                     />
@@ -385,24 +451,43 @@ export const TaskModal = ({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Lead</FormLabel>
-                          <Select 
-                            onValueChange={handleLeadChange} 
-                            value={field.value || ''}
-                            disabled={!!isModuleLocked}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select lead" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {leads.map(lead => (
-                                <SelectItem key={lead.id} value={lead.id}>
-                                  {lead.lead_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-1">
+                            <Select 
+                              onValueChange={handleLeadChange} 
+                              value={field.value || ''}
+                              disabled={!!isModuleLocked}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Select lead" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {leads.map(lead => (
+                                  <SelectItem key={lead.id} value={lead.id}>
+                                    {lead.lead_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="shrink-0"
+                                    onClick={() => setLeadModalOpen(true)}
+                                    disabled={!!isModuleLocked}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Add new lead</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </FormItem>
                       )}
                     />
@@ -666,6 +751,24 @@ export const TaskModal = ({
           </form>
         </Form>
       </DialogContent>
+
+      {/* Nested modals for creating new entities */}
+      <AccountModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onSuccess={() => {}}
+        onCreated={handleAccountCreated}
+      />
+      <ContactModal
+        open={contactModalOpen}
+        onOpenChange={setContactModalOpen}
+        onSuccess={handleContactCreated}
+      />
+      <LeadModal
+        open={leadModalOpen}
+        onOpenChange={setLeadModalOpen}
+        onSuccess={handleLeadCreated}
+      />
     </Dialog>
   );
 };

@@ -14,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Plus } from "lucide-react";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
+import { AccountModal } from "./AccountModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Helper function for URL validation
 const normalizeUrl = (url: string) => {
@@ -124,6 +126,14 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+
+  // Handler for when a new account is created
+  const handleAccountCreated = (newAccount: Account) => {
+    setAccounts(prev => [...prev, newAccount].sort((a, b) => a.company_name.localeCompare(b.company_name)));
+    form.setValue('account_id', newAccount.id);
+    setAccountModalOpen(false);
+  };
 
   // Duplicate detection for contacts
   const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
@@ -373,13 +383,34 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <div className="px-2 py-1">
+                        <div className="px-2 py-1 flex gap-1">
                           <Input
                             placeholder="Search accounts..."
                             value={accountSearch}
                             onChange={(e) => setAccountSearch(e.target.value)}
                             inputSize="control"
+                            className="flex-1"
                           />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setAccountModalOpen(true);
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Add new account</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                         {filteredAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
@@ -577,6 +608,14 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
           </form>
         </Form>
       </DialogContent>
+
+      {/* Nested Account Modal */}
+      <AccountModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onSuccess={() => {}}
+        onCreated={handleAccountCreated}
+      />
     </Dialog>
   );
 };
