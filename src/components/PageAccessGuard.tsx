@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { usePageAccess } from '@/hooks/usePageAccess';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -10,15 +10,15 @@ interface PageAccessGuardProps {
 const PageAccessGuard = ({ children }: PageAccessGuardProps) => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { hasAccess, loading } = usePageAccess(location.pathname);
+  const { hasPageAccess, loading: permissionsLoading } = usePermissions();
 
-  // Wait for both auth and access check to complete
-  if (authLoading || loading) {
+  // Only show loading during initial app load
+  if (authLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Checking access...</p>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -29,9 +29,10 @@ const PageAccessGuard = ({ children }: PageAccessGuardProps) => {
     return <Navigate to="/auth" replace />;
   }
 
-  // If access is explicitly denied (hasAccess is false, not null)
-  if (hasAccess === false) {
-    console.log('PageAccessGuard - Access denied for route:', location.pathname);
+  // Synchronous access check - no additional loading
+  const canAccess = hasPageAccess(location.pathname);
+
+  if (!canAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center max-w-md p-8">

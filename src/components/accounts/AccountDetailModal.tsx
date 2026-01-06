@@ -16,8 +16,10 @@ import {
   ExternalLink,
   Mail,
   Pencil,
-  ListTodo
+  ListTodo,
+  History
 } from "lucide-react";
+import { RecordChangeHistory } from "@/components/shared/RecordChangeHistory";
 import { format } from "date-fns";
 import { AccountActivityTimeline } from "./AccountActivityTimeline";
 import { AccountAssociations } from "./AccountAssociations";
@@ -102,13 +104,17 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
           </DialogHeader>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="tasks" className="flex items-center gap-1">
                 <ListTodo className="h-3 w-3" />
                 Tasks
               </TabsTrigger>
               <TabsTrigger value="timeline">Activity</TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-1">
+                <History className="h-3 w-3" />
+                History
+              </TabsTrigger>
               <TabsTrigger value="associations">Related</TabsTrigger>
             </TabsList>
 
@@ -211,6 +217,9 @@ export const AccountDetailModal = ({ open, onOpenChange, account, onUpdate, onEd
               <AccountActivityTimeline key={refreshKey} accountId={account.id} />
             </TabsContent>
 
+            <TabsContent value="history" className="mt-4">
+              <RecordChangeHistory entityType="accounts" entityId={account.id} maxHeight="400px" />
+            </TabsContent>
 
             <TabsContent value="associations" className="mt-4">
               <AccountAssociations 

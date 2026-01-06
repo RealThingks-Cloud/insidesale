@@ -16,6 +16,7 @@ import { ContactTagsManager } from './ContactTagsManager';
 import { ContactEmailTracking } from './ContactEmailTracking';
 import { ContactAssociations } from './ContactAssociations';
 import { EntityEmailHistory } from '@/components/shared/EntityEmailHistory';
+import { RecordChangeHistory } from '@/components/shared/RecordChangeHistory';
 import { SendEmailModal } from '@/components/SendEmailModal';
 import { AccountDetailModalById } from '@/components/accounts/AccountDetailModalById';
 import { MeetingModal } from '@/components/MeetingModal';
@@ -235,7 +236,7 @@ export const ContactDetailModal = ({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview" className="flex items-center gap-1">
                 <User className="h-4 w-4" />
                 Overview
@@ -248,8 +249,12 @@ export const ContactDetailModal = ({
                 <Activity className="h-4 w-4" />
                 Activity
               </TabsTrigger>
-              <TabsTrigger value="emails" className="flex items-center gap-1">
+              <TabsTrigger value="history" className="flex items-center gap-1">
                 <History className="h-4 w-4" />
+                History
+              </TabsTrigger>
+              <TabsTrigger value="emails" className="flex items-center gap-1">
+                <Mail className="h-4 w-4" />
                 Emails
               </TabsTrigger>
               <TabsTrigger value="tags" className="flex items-center gap-1">
@@ -400,6 +405,10 @@ export const ContactDetailModal = ({
                 </Button>
               </div>
               <ContactActivityTimeline contactId={contact.id} />
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-4">
+              <RecordChangeHistory entityType="contacts" entityId={contact.id} maxHeight="400px" />
             </TabsContent>
 
             <TabsContent value="emails" className="mt-4">

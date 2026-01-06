@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserDisplayNames } from '@/hooks/useUserDisplayNames';
+import { RecordChangeHistory } from '@/components/shared/RecordChangeHistory';
 import {
   CheckSquare,
   User,
@@ -187,12 +188,13 @@ export const TaskDetailModal = ({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="subtasks">
               Subtasks {subtasks.length > 0 && `(${completedSubtasks}/${subtasks.length})`}
             </TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="related">Related</TabsTrigger>
           </TabsList>
 
@@ -326,14 +328,25 @@ export const TaskDetailModal = ({
           <TabsContent value="activity" className="mt-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Activity Timeline</CardTitle>
+                <CardTitle className="text-base">Task Activity</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8 text-muted-foreground">
                   <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Activity tracking coming soon</p>
-                  <p className="text-xs mt-1">Task history and changes will be displayed here</p>
+                  <p>No activity logs available</p>
+                  <p className="text-xs mt-1">Check History tab for changes</p>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Change History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RecordChangeHistory entityType="tasks" entityId={task.id} maxHeight="300px" />
               </CardContent>
             </Card>
           </TabsContent>

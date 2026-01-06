@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { useMeetingsImportExport } from "@/hooks/useMeetingsImportExport";
 import { Button } from "@/components/ui/button";
@@ -64,9 +64,8 @@ const Meetings = () => {
   const {
     toast
   } = useToast();
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const queryClient = useQueryClient();
   const [filteredMeetings, setFilteredMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
@@ -122,6 +121,49 @@ const Meetings = () => {
     }
   }, [searchParams]);
 
+  // viewId effect is moved below the meetings query
+
+  // Fetch all profiles for organizer dropdown with caching
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['all-profiles'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name');
+      return data || [];
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Fetch meetings with React Query caching
+  const { data: meetings = [], isLoading: loading, refetch: refetchMeetings } = useQuery({
+    queryKey: ['meetings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('meetings').select(`
+          *,
+          leads:lead_id (lead_name),
+          contacts:contact_id (contact_name)
+        `).order('start_time', {
+        ascending: true
+      });
+      if (error) throw error;
+      return (data || []).map(meeting => ({
+        ...meeting,
+        lead_name: meeting.leads?.lead_name,
+        contact_name: meeting.contacts?.contact_name
+      })) as Meeting[];
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  const fetchMeetings = () => {
+    refetchMeetings();
+  };
+
+  // Get organizer display names
+  const organizerIds = useMemo(() => {
+    return [...new Set(meetings.map(m => m.created_by).filter(Boolean))] as string[];
+  }, [meetings]);
+  const { displayNames: organizerNames } = useUserDisplayNames(organizerIds);
+
   // Handle viewId from URL (from global search)
   useEffect(() => {
     const viewId = searchParams.get('viewId');
@@ -130,7 +172,6 @@ const Meetings = () => {
       if (meetingToView) {
         setEditingMeeting(meetingToView);
         setShowModal(true);
-        // Clear the viewId from URL after opening
         setSearchParams(prev => {
           prev.delete('viewId');
           return prev;
@@ -138,58 +179,6 @@ const Meetings = () => {
       }
     }
   }, [searchParams, meetings, setSearchParams]);
-
-  // Fetch all profiles for organizer dropdown
-  const { data: allProfiles = [] } = useQuery({
-    queryKey: ['all-profiles'],
-    queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('id, full_name');
-      return data || [];
-    },
-  });
-
-  // Get organizer display names
-  const organizerIds = useMemo(() => {
-    return [...new Set(meetings.map(m => m.created_by).filter(Boolean))] as string[];
-  }, [meetings]);
-  const { displayNames: organizerNames } = useUserDisplayNames(organizerIds);
-
-  const fetchMeetings = async () => {
-    try {
-      setLoading(true);
-      const {
-        data,
-        error
-      } = await supabase.from('meetings').select(`
-          *,
-          leads:lead_id (lead_name),
-          contacts:contact_id (contact_name)
-        `).order('start_time', {
-        ascending: true
-      });
-      if (error) throw error;
-      const transformedData = (data || []).map(meeting => ({
-        ...meeting,
-        lead_name: meeting.leads?.lead_name,
-        contact_name: meeting.contacts?.contact_name
-      }));
-      setMeetings(transformedData);
-      setSelectedMeetings([]);
-    } catch (error) {
-      console.error('Error fetching meetings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch meetings",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMeetings();
-  }, []);
 
   const getEffectiveStatus = (meeting: Meeting) => {
     return getMeetingStatus(meeting);
@@ -434,14 +423,8 @@ const Meetings = () => {
     }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading meetings...</p>
-        </div>
-      </div>;
-  }
+  // Show skeleton instead of blocking full-screen loader
+  const showSkeleton = loading && meetings.length === 0;
 
   return <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Hidden file input for import */}
@@ -529,7 +512,12 @@ const Meetings = () => {
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col">
-        {viewMode === 'calendar' ? (
+        {showSkeleton ? (
+          <div className="space-y-4 flex-1">
+            <div className="h-10 bg-muted animate-pulse rounded" />
+            <div className="h-64 bg-muted animate-pulse rounded" />
+          </div>
+        ) : viewMode === 'calendar' ? (
           <div className="flex-1 min-h-0 overflow-auto">
             <MeetingsCalendarView
               meetings={filteredMeetings}

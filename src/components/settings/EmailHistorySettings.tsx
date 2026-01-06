@@ -464,9 +464,10 @@ const EmailHistorySettings = () => {
 
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Message</p>
-                <div className="p-3 bg-muted/50 rounded-lg whitespace-pre-wrap text-sm max-h-[200px] overflow-y-auto">
-                  {selectedEmail.body || "No message content"}
-                </div>
+                <div 
+                  className="p-3 bg-muted/50 rounded-lg text-sm max-h-[200px] overflow-y-auto email-body-preview"
+                  dangerouslySetInnerHTML={{ __html: selectedEmail.body || "<p>No message content</p>" }}
+                />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t">

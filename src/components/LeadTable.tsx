@@ -30,7 +30,7 @@ import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
 import { useTasks } from "@/hooks/useTasks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Export ref interface for parent component
 export interface LeadTableRef {
@@ -129,10 +129,9 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   const { toast } = useToast();
   const { logDelete, logBulkDelete } = useCRUDAudit();
   const { userRole } = useUserRole();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatus);
@@ -190,22 +189,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   
-  // Handle viewId from URL (from global search)
-  const viewId = searchParams.get('viewId');
-  useEffect(() => {
-    if (viewId && leads.length > 0) {
-      const leadToView = leads.find(l => l.id === viewId);
-      if (leadToView) {
-        setViewingLead(leadToView);
-        setShowDetailModal(true);
-        // Clear the viewId from URL after opening
-        setSearchParams(prev => {
-          prev.delete('viewId');
-          return prev;
-        }, { replace: true });
-      }
-    }
-  }, [viewId, leads, setSearchParams]);
+  // viewId effect is moved below the leads query
   
   // Column preferences hook
   const { columns, saveColumns, isSaving } = useColumnPreferences({
@@ -235,18 +219,58 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   
   const { createTask } = useTasks();
 
-  // Fetch all profiles for owner dropdown
+  // Fetch all profiles for owner dropdown with caching
   const { data: allProfiles = [] } = useQuery({
     queryKey: ['all-profiles'],
     queryFn: async () => {
       const { data } = await supabase.from('profiles').select('id, full_name');
       return data || [];
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
+  // Fetch leads with React Query caching
+  const { data: leads = [], isLoading: loading, refetch: refetchLeads } = useQuery({
+    queryKey: ['leads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('leads').select(`
+        *,
+        accounts:account_id (
+          company_name
+        )
+      `).order('created_time', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Transform data to include account_company_name
+      return (data || []).map(lead => ({
+        ...lead,
+        account_company_name: lead.accounts?.company_name || lead.company_name || null
+      })) as Lead[];
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes - balance freshness with performance
+  });
+
+  const fetchLeads = () => {
+    refetchLeads();
+  };
+
+  // Handle viewId from URL (from global search)
+  const viewId = searchParams.get('viewId');
   useEffect(() => {
-    fetchLeads();
-  }, []);
+    if (viewId && leads.length > 0) {
+      const leadToView = leads.find(l => l.id === viewId);
+      if (leadToView) {
+        setViewingLead(leadToView);
+        setShowDetailModal(true);
+        // Clear the viewId from URL after opening
+        setSearchParams(prev => {
+          prev.delete('viewId');
+          return prev;
+        }, { replace: true });
+      }
+    }
+  }, [viewId, leads, setSearchParams]);
 
   useEffect(() => {
     const searchLower = debouncedSearchTerm.toLowerCase();
@@ -309,40 +333,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   };
 
   const getSortIcon = (field: string) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />;
-    }
-    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />;
-  };
-
-  const fetchLeads = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.from('leads').select(`
-        *,
-        accounts:account_id (
-          company_name
-        )
-      `).order('created_time', { ascending: false });
-      
-      if (error) throw error;
-      
-      // Transform data to include account_company_name
-      const transformedData = (data || []).map(lead => ({
-        ...lead,
-        account_company_name: lead.accounts?.company_name || lead.company_name || null
-      }));
-      
-      setLeads(transformedData);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch leads",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    return null; // Hide sort icons but keep sorting on click
   };
 
   const handleDelete = async (deleteLinkedRecords: boolean = true) => {
@@ -519,9 +510,8 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
         }).eq('id', leadToConvert.id);
         
         if (!error) {
-          setLeads(prevLeads => prevLeads.map(lead => 
-            lead.id === leadToConvert.id ? { ...lead, lead_status: 'Converted' } : lead
-          ));
+          // Invalidate cache to trigger refetch
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
         }
       } catch (error) {
         // Silent fail for status update
@@ -645,7 +635,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                   {visibleColumns.map(column => (
                     <TableHead 
                       key={column.field} 
-                      className="text-left font-bold text-foreground px-4 py-3 whitespace-nowrap"
+                      className="text-left font-bold text-foreground px-4 py-3 whitespace-nowrap min-w-[80px]"
                     >
                       <div 
                         className="group flex items-center gap-2 cursor-pointer hover:text-primary" 
@@ -690,7 +680,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                   pageLeads.map(lead => (
                     <TableRow 
                       key={lead.id} 
-                      className="group hover:bg-muted/20 border-b" 
+                      className={`group hover:bg-muted/30 border-b transition-colors ${selectedLeads.includes(lead.id) ? 'bg-primary/5' : ''}`}
                       data-state={selectedLeads.includes(lead.id) ? "selected" : undefined}
                     >
                       <TableCell className="text-center px-4 py-3">

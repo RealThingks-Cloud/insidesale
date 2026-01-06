@@ -40,7 +40,7 @@ export const DealCard = ({
 
   return (
     <Card
-      className={`deal-card cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md group ${
+      className={`deal-card cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md hover:border-primary/30 group ${
         isDragging ? 'opacity-50 shadow-lg' : ''
       } ${isSelected ? 'ring-2 ring-primary bg-primary/5 border-primary' : ''} ${
         selectionMode ? 'pl-8' : ''

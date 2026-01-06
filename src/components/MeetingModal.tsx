@@ -952,7 +952,7 @@ export const MeetingModal = ({
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Subject *</Label>
             <Input
-              placeholder="Enter meeting subject"
+              placeholder="e.g., Project kickoff meeting"
               value={formData.subject}
               onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
               className="h-8 text-xs"
@@ -1059,7 +1059,7 @@ export const MeetingModal = ({
               <Label className="text-xs font-medium">Duration *</Label>
               <Select value={duration} onValueChange={handleDurationChange}>
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select duration" />
+                  <SelectValue placeholder="Select duration..." />
                 </SelectTrigger>
                 <SelectContent>
                   {DURATION_OPTIONS.map(option => (

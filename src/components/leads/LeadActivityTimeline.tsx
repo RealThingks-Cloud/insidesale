@@ -10,9 +10,10 @@ import {
   CheckSquare,
   Briefcase,
   Clock,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { ActivityDetailModal } from "@/components/shared/ActivityDetailModal";
 
 interface TimelineItem {
   id: string;
@@ -53,6 +54,7 @@ const getActivityColor = (type: string) => {
 export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedActivity, setSelectedActivity] = useState<TimelineItem | null>(null);
 
   useEffect(() => {
     fetchTimeline();
@@ -149,49 +151,61 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
   }
 
   return (
-    <ScrollArea className="h-[400px]">
-      <div className="relative pl-6">
-        {/* Timeline line */}
-        <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-border" />
-        
-        <div className="space-y-4">
-          {timeline.map((item) => (
-            <div key={item.id} className="relative">
-              {/* Timeline dot */}
-              <div className={`absolute -left-4 mt-1.5 w-4 h-4 rounded-full flex items-center justify-center ${
-                item.type === 'meeting'
-                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-                  : getActivityColor(item.metadata?.type || '')
-              }`}>
-                {item.icon}
-              </div>
-              
-              <div className="ml-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.title}</p>
-                    {item.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(item.date), 'dd/MM/yyyy')}
-                    </span>
-                    {item.metadata?.type && (
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {item.metadata.type}
-                      </Badge>
-                    )}
+    <>
+      <ScrollArea className="h-[350px]">
+        <div className="relative pl-6">
+          {/* Timeline line */}
+          <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-border" />
+          
+          <div className="space-y-4">
+            {timeline.map((item) => (
+              <div 
+                key={item.id} 
+                className="relative cursor-pointer"
+                onClick={() => setSelectedActivity(item)}
+              >
+                {/* Timeline dot */}
+                <div className={`absolute -left-4 mt-1.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                  item.type === 'meeting'
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                    : getActivityColor(item.metadata?.type || '')
+                }`}>
+                  {item.icon}
+                </div>
+                
+                <div className="ml-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.title}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(item.date), 'dd/MM/yyyy')}
+                      </span>
+                      {item.metadata?.type && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {item.metadata.type}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-    </ScrollArea>
+      </ScrollArea>
+
+      <ActivityDetailModal
+        open={!!selectedActivity}
+        onOpenChange={(open) => !open && setSelectedActivity(null)}
+        activity={selectedActivity}
+      />
+    </>
   );
 };

@@ -342,7 +342,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             onValueChange={(val) => onChange(field, parseInt(val))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select priority" />
+              <SelectValue placeholder="Select priority..." />
             </SelectTrigger>
             <SelectContent>
               {[1, 2, 3, 4, 5].map(num => (
@@ -364,7 +364,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select probability" />
+              <SelectValue placeholder="Select probability..." />
             </SelectTrigger>
             <SelectContent>
               {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
@@ -383,7 +383,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             onValueChange={(val) => onChange(field, val)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select region" />
+              <SelectValue placeholder="Select region..." />
             </SelectTrigger>
             <SelectContent>
               {['EU', 'US', 'ASIA', 'Other'].map(region => (
@@ -402,7 +402,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             onValueChange={(val) => onChange(field, val)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select customer need" />
+              <SelectValue placeholder="Select customer need..." />
             </SelectTrigger>
             <SelectContent>
               {['Open', 'Ongoing', 'Done'].map(option => (
@@ -445,7 +445,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             onValueChange={(val) => onChange(field, val)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select relationship strength" />
+              <SelectValue placeholder="Select relationship strength..." />
             </SelectTrigger>
             <SelectContent>
               {['Low', 'Medium', 'High'].map(option => (
@@ -468,7 +468,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
               console.log(`Budget update: setting to ${e.target.value}`);
               handleNumericChange(field, e.target.value);
             }}
-            placeholder="Enter budget in euros..."
+            placeholder="e.g., 50000"
           />
         );
 
@@ -482,7 +482,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select recurring status" />
+              <SelectValue placeholder="Select recurring status..." />
             </SelectTrigger>
             <SelectContent>
               {['Yes', 'No', 'Unclear'].map(option => (

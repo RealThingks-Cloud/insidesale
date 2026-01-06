@@ -633,9 +633,6 @@ export const ListView = ({
                 >
                   <div className="flex items-center justify-center gap-2 pr-4 text-foreground font-bold">
                     {column.label}
-                    {sortBy === column.field && (
-                      sortOrder === "asc" ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                    )}
                   </div>
                   <div
                     className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary/40 bg-transparent"
@@ -668,7 +665,7 @@ export const ListView = ({
               paginatedDeals.map((deal) => (
                 <TableRow 
                   key={deal.id} 
-                  className={`hover:bg-muted/20 border-b group ${selectedDeals.has(deal.id) ? 'bg-muted/30' : ''}`}
+                  className={`hover:bg-muted/30 border-b group transition-colors ${selectedDeals.has(deal.id) ? 'bg-primary/5' : ''}`}
                   data-state={selectedDeals.has(deal.id) ? "selected" : undefined}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()} className="text-center px-4 py-3">

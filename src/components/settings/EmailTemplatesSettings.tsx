@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/shared/TablePagination";
 import TemplatePreviewModal from "./email/TemplatePreviewModal";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 
 interface EmailTemplate {
   id: string;
@@ -355,13 +355,10 @@ const EmailTemplatesSettings = () => {
 
             <div className="space-y-2">
               <Label htmlFor="body">Email Body *</Label>
-              <Textarea
-                id="body"
+              <RichTextEditor
                 value={formData.body}
-                onChange={(e) => setFormData(prev => ({ ...prev, body: e.target.value }))}
+                onChange={(value) => setFormData(prev => ({ ...prev, body: value }))}
                 placeholder="Write your email content here. Use variables like {{contact_name}} for personalization."
-                rows={8}
-                required
               />
             </div>
 

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EntityEmailHistory } from '@/components/shared/EntityEmailHistory';
+import { RecordChangeHistory } from '@/components/shared/RecordChangeHistory';
 import { SendEmailModal } from '@/components/SendEmailModal';
 import { LeadActivityTimeline } from './LeadActivityTimeline';
 import { LeadActivityLogModal } from './LeadActivityLogModal';
@@ -34,6 +35,7 @@ import {
   CalendarPlus,
   CheckSquare,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -194,9 +196,13 @@ export const LeadDetailModal = ({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-1">
+                <History className="h-3 w-3" />
+                History
+              </TabsTrigger>
               <TabsTrigger value="emails">Emails</TabsTrigger>
               <TabsTrigger value="related">Related</TabsTrigger>
             </TabsList>
@@ -305,6 +311,10 @@ export const LeadDetailModal = ({
 
             <TabsContent value="activity" className="mt-4">
               <LeadActivityTimeline key={refreshKey} leadId={lead.id} />
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-4">
+              <RecordChangeHistory entityType="leads" entityId={lead.id} maxHeight="400px" />
             </TabsContent>
 
             <TabsContent value="emails" className="mt-4">

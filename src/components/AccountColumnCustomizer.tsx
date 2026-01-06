@@ -32,9 +32,10 @@ export const defaultAccountColumns: AccountColumnConfig[] = [
   { field: 'website', label: 'Website', visible: false, order: 7 },
   { field: 'region', label: 'Region', visible: false, order: 8 },
   { field: 'phone', label: 'Phone', visible: false, order: 9 },
-  { field: 'account_owner', label: 'Account Owner', visible: true, order: 10 },
-  { field: 'deal_count', label: 'Deals', visible: false, order: 11 },
-  { field: 'contact_count', label: 'Contacts', visible: false, order: 12 },
+  { field: 'deal_count', label: 'Deals', visible: false, order: 10 },
+  { field: 'contact_count', label: 'Contacts', visible: false, order: 11 },
+  { field: 'lead_count', label: 'Leads', visible: false, order: 12 },
+  { field: 'account_owner', label: 'Account Owner', visible: true, order: 13 },
 ];
 
 export const AccountColumnCustomizer = ({

@@ -15,6 +15,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Upload, Download, Columns, MoreVertical } from "lucide-react";
 import { useDealsImportExport } from "@/hooks/useDealsImportExport";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 const DealsPage = () => {
   const [searchParams] = useSearchParams();
   const initialStageFilter = searchParams.get('stage') || 'all';
@@ -23,6 +25,7 @@ const DealsPage = () => {
     loading: authLoading
   } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const {
     toast
   } = useToast();
@@ -31,9 +34,7 @@ const DealsPage = () => {
     logUpdate,
     logBulkDelete
   } = useCRUDAudit();
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [filteredDeals, setFilteredDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -42,6 +43,24 @@ const DealsPage = () => {
   const [selectedDealIds, setSelectedDealIds] = useState<string[]>([]);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [stageFilterFromUrl, setStageFilterFromUrl] = useState(initialStageFilter);
+  
+  // Fetch deals with React Query caching
+  const { data: deals = [], isLoading: loading, refetch: refetchDeals } = useQuery({
+    queryKey: ['deals'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deals').select('*').order('modified_at', {
+        ascending: false
+      });
+      if (error) throw error;
+      return (data || []) as unknown as Deal[];
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled: !!user, // Only fetch when user is available
+  });
+
+  const fetchDeals = async () => {
+    await refetchDeals();
+  };
   
   // Initialize import/export hook at component level
   const { handleImport, handleExportAll, handleExportSelected } = useDealsImportExport({
@@ -84,36 +103,7 @@ const DealsPage = () => {
       setFilteredDeals(deals);
     }
   }, [deals, ownerParam, user?.id]);
-  const fetchDeals = async () => {
-    try {
-      setLoading(true);
-      const {
-        data,
-        error
-      } = await supabase.from('deals').select('*').order('modified_at', {
-        ascending: false
-      });
-      if (error) {
-        console.error('Supabase error fetching deals:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch deals",
-          variant: "destructive"
-        });
-        return;
-      }
-      setDeals((data || []) as unknown as Deal[]);
-    } catch (error) {
-      console.error('Unexpected error fetching deals:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Old fetchDeals removed - using React Query now
   const handleUpdateDeal = async (dealId: string, updates: Partial<Deal>) => {
     try {
       console.log("=== HANDLE UPDATE DEAL DEBUG ===");
@@ -143,11 +133,8 @@ const DealsPage = () => {
       // Log update operation
       await logUpdate('deals', dealId, updates, existingDeal);
 
-      // Update local state
-      setDeals(prev => prev.map(deal => deal.id === dealId ? {
-        ...deal,
-        ...updateData
-      } : deal));
+      // Invalidate cache instead of setDeals
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
       toast({
         title: "Success",
         description: "Deal updated successfully"
@@ -200,7 +187,8 @@ const DealsPage = () => {
 
         // Log create operation
         await logCreate('deals', data.id, dealData);
-        setDeals(prev => [data as unknown as Deal, ...prev]);
+        // Invalidate cache to refresh deals
+        queryClient.invalidateQueries({ queryKey: ['deals'] });
       } else if (selectedDeal) {
         const updateData = {
           ...dealData,
@@ -242,9 +230,9 @@ const DealsPage = () => {
       console.log("Deleted IDs:", deletedIds);
       console.log("Not deleted due to RLS/permissions:", notDeleted);
 
-      // Update local state only for deals that were actually deleted
+      // Invalidate cache to refresh deals
       if (deletedIds.length > 0) {
-        setDeals(prev => prev.filter(deal => !deletedIds.includes(deal.id)));
+        queryClient.invalidateQueries({ queryKey: ['deals'] });
 
         // Log bulk delete with only the successfully deleted IDs
         await logBulkDelete('deals', deletedIds.length, deletedIds);
@@ -310,23 +298,15 @@ const DealsPage = () => {
     if (user) {
       fetchDeals();
 
-      // Set up real-time subscription
+      // Set up real-time subscription - just invalidate cache on changes
       const channel = supabase.channel('deals-changes').on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'deals'
       }, payload => {
         console.log('Real-time deal change:', payload);
-        if (payload.eventType === 'INSERT') {
-          setDeals(prev => [payload.new as Deal, ...prev]);
-        } else if (payload.eventType === 'UPDATE') {
-          setDeals(prev => prev.map(deal => deal.id === payload.new.id ? {
-            ...deal,
-            ...payload.new
-          } as Deal : deal));
-        } else if (payload.eventType === 'DELETE') {
-          setDeals(prev => prev.filter(deal => deal.id !== payload.old.id));
-        }
+        // Invalidate cache to refresh deals - React Query will handle the refetch
+        queryClient.invalidateQueries({ queryKey: ['deals'] });
       }).subscribe();
 
       // Listen for custom import events
@@ -341,7 +321,10 @@ const DealsPage = () => {
       };
     }
   }, [user]);
-  if (authLoading || loading) {
+  // Show skeleton instead of blocking full-screen loader
+  const showSkeleton = loading && deals.length === 0;
+  
+  if (authLoading) {
     return <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -352,6 +335,7 @@ const DealsPage = () => {
   if (!user) {
     return null;
   }
+  
   return <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Fixed Header */}
       <div className="flex-shrink-0 bg-background">
@@ -452,7 +436,12 @@ const DealsPage = () => {
 
       {/* Main Content Area - Takes remaining height */}
       <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-4 overflow-hidden">
-        {activeView === 'kanban' ? (
+        {showSkeleton ? (
+          <div className="space-y-4 flex-1">
+            <div className="h-10 bg-muted animate-pulse rounded" />
+            <div className="h-64 bg-muted animate-pulse rounded" />
+          </div>
+        ) : activeView === 'kanban' ? (
           <KanbanBoard 
             deals={filteredDeals} 
             onUpdateDeal={handleUpdateDeal} 

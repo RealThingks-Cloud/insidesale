@@ -62,6 +62,31 @@ async function getAccessToken(): Promise<string> {
   return data.access_token as string;
 }
 
+// Rewrite links in HTML body for click tracking
+function rewriteLinksForTracking(htmlBody: string, emailHistoryId: string, supabaseUrl: string): string {
+  const clickTrackingBaseUrl = `${supabaseUrl}/functions/v1/track-email-click`;
+  
+  // Match href attributes in anchor tags
+  const linkRegex = /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi;
+  
+  return htmlBody.replace(linkRegex, (match, before, url, after) => {
+    // Skip tracking for mailto: links, tel: links, and anchor links
+    if (url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('#')) {
+      return match;
+    }
+    
+    // Skip if it's already a tracking URL
+    if (url.includes('track-email-click')) {
+      return match;
+    }
+    
+    const encodedUrl = encodeURIComponent(url);
+    const trackingUrl = `${clickTrackingBaseUrl}?id=${emailHistoryId}&url=${encodedUrl}`;
+    
+    return `<a ${before}href="${trackingUrl}"${after}>`;
+  });
+}
+
 async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailHistoryId: string): Promise<void> {
   const graphUrl = `https://graph.microsoft.com/v1.0/users/${emailRequest.from}/sendMail`;
 
@@ -77,9 +102,14 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const trackingPixelUrl = `${supabaseUrl}/functions/v1/track-email-open?id=${emailHistoryId}`;
   
+  // Rewrite links for click tracking
+  const bodyWithClickTracking = rewriteLinksForTracking(emailRequest.body, emailHistoryId, supabaseUrl);
+  
   // Embed tracking pixel in email body (append to HTML content)
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
-  const bodyWithTracking = emailRequest.body + trackingPixel;
+  const bodyWithTracking = bodyWithClickTracking + trackingPixel;
+
+  console.log(`Rewritten ${(emailRequest.body.match(/<a\s+[^>]*href=/gi) || []).length} link(s) for click tracking`);
 
   const emailPayload: any = {
     message: {
@@ -106,7 +136,7 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     console.log(`Adding ${attachments.length} attachment(s) to email`);
   }
 
-  console.log(`Sending email to ${emailRequest.to} with tracking pixel...`);
+  console.log(`Sending email to ${emailRequest.to} with tracking pixel and click tracking...`);
 
   const response = await fetch(graphUrl, {
     method: "POST",
@@ -123,7 +153,7 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     throw new Error(`Failed to send email: ${response.status} ${errorText}`);
   }
 
-  console.log("Email sent successfully with tracking pixel embedded");
+  console.log("Email sent successfully with tracking pixel and click tracking embedded");
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -198,7 +228,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get access token from Azure AD
     const accessToken = await getAccessToken();
 
-    // Send email via Microsoft Graph API with tracking pixel
+    // Send email via Microsoft Graph API with tracking pixel and click tracking
     await sendEmail(accessToken, { to, subject, body, toName, from, attachments }, emailRecord.id);
 
     // Update email history to mark as delivered

@@ -1,6 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
+/* Fonts loaded via index.html for optimal performance */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,14 +20,14 @@ All colors MUST be HSL.
 
     /* Light Blue theme with soft accents */
     --primary: 200 98% 39%;
-    --primary-foreground: 204 100% 97%;
+    --primary-foreground: 0 0% 100%;
     --primary-variant: 204 94% 45%;
 
     --secondary: 215 24% 26%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    --muted-foreground: 215 16% 47%;
 
     --accent: 210 40% 98%;
     --accent-foreground: 215 19% 34%;
@@ -122,7 +120,7 @@ All colors MUST be HSL.
     --secondary-foreground: 228 84% 4%; /* #f8fafc - slate-50 */
 
     --muted: 215 16% 46%; /* #1e293b - slate-800 */
-    --muted-foreground: 210 40% 98%; /* #64748b - slate-500 */
+    --muted-foreground: 215 20% 65%; /* #94a3b8 - slate-400 */
 
     --accent: 228 84% 4%; /* #3b82f6 - blue-500 */
     --accent-foreground: 215 20% 65%; /* #f8fafc - slate-50 */
@@ -388,5 +386,49 @@ All colors MUST be HSL.
   /* Dashboard grid consistent styling */
   .dashboard-widget {
     @apply h-full overflow-hidden flex flex-col animate-fade-in;
+  }
+
+  /* Email body preview styling */
+  .email-body-preview {
+    @apply text-foreground;
+  }
+  .email-body-preview a {
+    @apply text-primary underline;
+  }
+  .email-body-preview ul,
+  .email-body-preview ol {
+    @apply pl-6 my-2;
+  }
+  .email-body-preview ul {
+    @apply list-disc;
+  }
+  .email-body-preview ol {
+    @apply list-decimal;
+  }
+  .email-body-preview p {
+    @apply mb-2;
+  }
+  .email-body-preview h1 {
+    @apply text-xl font-bold mb-2;
+  }
+  .email-body-preview h2 {
+    @apply text-lg font-semibold mb-2;
+  }
+  .email-body-preview h3 {
+    @apply text-base font-semibold mb-1;
+  }
+
+  /* Rich text editor styling */
+  .rich-text-editor .ql-container {
+    @apply border-border rounded-b-md min-h-[150px] bg-background text-foreground;
+  }
+  .rich-text-editor .ql-toolbar {
+    @apply border-border rounded-t-md bg-muted/30;
+  }
+  .rich-text-editor .ql-editor {
+    @apply min-h-[150px];
+  }
+  .rich-text-editor .ql-editor.ql-blank::before {
+    @apply text-muted-foreground;
   }
 }

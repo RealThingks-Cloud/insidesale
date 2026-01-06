@@ -6,9 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mail, Send, Loader2, Paperclip, X, FileIcon } from "lucide-react";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 
 // Generic recipient interface that works with contacts, leads, and accounts
 export interface EmailRecipient {
@@ -195,6 +195,10 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
         }))
       );
 
+      // Determine entity type and id
+      const entityType = contactId ? 'contact' : leadId ? 'lead' : accountId ? 'account' : undefined;
+      const entityId = contactId || leadId || accountId || undefined;
+
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: emailRecipient.email,
@@ -203,6 +207,8 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
           body: body.trim(),
           from: senderEmail,
           attachments: attachmentData,
+          entityType,
+          entityId,
         },
       });
 
@@ -212,49 +218,17 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
         throw new Error(data.error);
       }
 
-      // Log email to email_history table
-      try {
-        await supabase.from('email_history').insert({
-          recipient_email: emailRecipient.email,
-          recipient_name: emailRecipient.name,
-          subject: subject.trim(),
-          body: body.trim(),
-          sender_email: senderEmail,
-          sent_by: user?.id,
-          contact_id: contactId || null,
-          lead_id: leadId || null,
-          account_id: accountId || null,
-          status: 'sent',
-        });
-      } catch (historyError) {
-        console.error('Error logging email to history:', historyError);
-      }
-
-      // Update contact email tracking stats if contactId is provided
+      // Update last_contacted_at for the contact (email history is created by the edge function)
       if (contactId) {
         try {
-          // Get current stats
-          const { data: contactData } = await supabase
+          await supabase
             .from('contacts')
-            .select('email_opens, email_clicks, engagement_score')
-            .eq('id', contactId)
-            .single();
-
-          if (contactData) {
-            const newEmailOpens = (contactData.email_opens || 0) + 1;
-            const newEngagementScore = Math.min((contactData.engagement_score || 0) + 5, 100);
-
-            await supabase
-              .from('contacts')
-              .update({
-                email_opens: newEmailOpens,
-                engagement_score: newEngagementScore,
-                last_contacted_at: new Date().toISOString(),
-              })
-              .eq('id', contactId);
-          }
+            .update({
+              last_contacted_at: new Date().toISOString(),
+            })
+            .eq('id', contactId);
         } catch (updateError) {
-          console.error('Error updating contact email stats:', updateError);
+          console.error('Error updating contact last_contacted_at:', updateError);
         }
       }
 
@@ -335,12 +309,10 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
 
           <div className="space-y-2">
             <Label htmlFor="body">Message</Label>
-            <Textarea
-              id="body"
+            <RichTextEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={setBody}
               placeholder="Email message..."
-              rows={6}
             />
           </div>
 

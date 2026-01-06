@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSecurityAudit } from '@/hooks/useSecurityAudit';
-import { supabase } from '@/integrations/supabase/client';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface SecurityContextType {
   isSecurityEnabled: boolean;
@@ -26,52 +26,13 @@ interface SecurityProviderProps {
 export const SecurityProvider = ({ children }: SecurityProviderProps) => {
   const { user } = useAuth();
   const { logSecurityEvent } = useSecurityAudit();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const { userRole, isAdmin } = usePermissions();
   
   // Refs to prevent duplicate session logging
   const sessionLoggedRef = useRef<string | null>(null);
   const visibilityHandlerRef = useRef<(() => void) | null>(null);
 
-  const hasAdminAccess = userRole === 'admin';
-
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      if (!user) {
-        setUserRole(null);
-        return;
-      }
-
-      try {
-        // Check user metadata first for role
-        const metadataRole = user.user_metadata?.role;
-        if (metadataRole) {
-          setUserRole(metadataRole);
-          return;
-        }
-
-        // Fallback to database lookup
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching user role:', error);
-          setUserRole('user');
-          return;
-        }
-
-        const role = data?.role || 'user';
-        setUserRole(role);
-      } catch (error) {
-        console.error('Failed to fetch user role:', error);
-        setUserRole('user');
-      }
-    };
-
-    fetchUserRole();
-  }, [user]);
+  const hasAdminAccess = isAdmin;
 
   // Debounced visibility change handler
   const handleVisibilityChange = useCallback(() => {

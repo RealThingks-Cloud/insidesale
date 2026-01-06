@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { LEAD_SOURCES } from "@/utils/leadStatusUtils";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
 import { AccountModal } from "./AccountModal";
@@ -325,13 +325,13 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {/* Duplicate Warning */}
             {!lead && duplicates.length > 0 && (
               <DuplicateWarning duplicates={duplicates} entityType="lead" />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField
                 control={form.control}
                 name="lead_name"
@@ -340,7 +340,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                     <FormLabel>Lead Name *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="Lead Name" 
+                        placeholder="e.g., John Smith"
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
@@ -362,7 +362,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                     <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select account">
+                          <SelectValue placeholder="Select account...">
                             {field.value && accounts.find(a => a.id === field.value)?.company_name}
                           </SelectValue>
                         </SelectTrigger>
@@ -421,7 +421,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                   <FormItem>
                     <FormLabel>Position</FormLabel>
                     <FormControl>
-                      <Input placeholder="CEO" {...field} />
+                      <Input placeholder="e.g., CEO, Sales Manager" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -437,7 +437,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                     <FormControl>
                       <Input 
                         type="email" 
-                        placeholder="email@example.com" 
+                        placeholder="e.g., name@company.com" 
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
@@ -487,7 +487,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select source" />
+                          <SelectValue placeholder="Select source..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -512,7 +512,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="New" />
+                          <SelectValue placeholder="Select status..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -566,7 +566,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
               <Button type="submit" disabled={loading}>
                 {loading ? (
                   <>
-                    <span className="animate-spin mr-2">⏳</span>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {lead ? "Saving..." : "Creating..."}
                   </>
                 ) : lead ? "Save Changes" : "Add Lead"}

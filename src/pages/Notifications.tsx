@@ -107,16 +107,8 @@ const Notifications = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading notifications...</p>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton instead of blocking full-screen loader
+  const showSkeleton = loading && notifications.length === 0;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -154,7 +146,13 @@ const Notifications = () => {
 
       {/* Notifications List */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {notifications.length === 0 ? (
+        {showSkeleton ? (
+          <div className="space-y-4 p-6">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-20 bg-muted animate-pulse rounded" />
+            ))}
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-muted-foreground">
               <Bell className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />

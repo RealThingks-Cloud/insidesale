@@ -142,13 +142,8 @@ const Tasks = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // Show skeleton in content area instead of blocking spinner
+  const showSkeleton = loading && tasks.length === 0;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -188,7 +183,7 @@ const Tasks = () => {
               {/* Actions Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
+                  <Button variant="outline" size="sm">
                     Actions
                   </Button>
                 </DropdownMenuTrigger>
@@ -216,8 +211,8 @@ const Tasks = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button size="sm" onClick={() => setShowModal(true)}>
-                <Plus className="h-4 w-4 mr-1" />
+              <Button size="sm" className="gap-1.5" onClick={() => setShowModal(true)}>
+                <Plus className="w-4 h-4" />
                 Add Task
               </Button>
             </div>
@@ -227,32 +222,41 @@ const Tasks = () => {
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 overflow-auto px-4 pt-2 pb-4">
-        {viewMode === 'list' && (
-          <TaskListView 
-            tasks={tasks} 
-            onEdit={handleEdit} 
-            onDelete={handleDelete} 
-            onStatusChange={handleStatusChange} 
-            onToggleComplete={handleToggleComplete} 
-            initialStatusFilter={initialStatusFilter} 
-            initialOwnerFilter={initialOwnerFilter}
-            selectedTasks={selectedTasks}
-            onSelectionChange={setSelectedTasks}
-          />
-        )}
-        {viewMode === 'kanban' && (
-          <TaskKanbanView 
-            tasks={tasks} 
-            onEdit={handleEdit} 
-            onDelete={handleDelete} 
-            onStatusChange={handleStatusChange}
-          />
-        )}
-        {viewMode === 'calendar' && (
-          <TaskCalendarView 
-            tasks={tasks} 
-            onEdit={handleEdit}
-          />
+        {showSkeleton ? (
+          <div className="space-y-4">
+            <div className="h-10 bg-muted animate-pulse rounded" />
+            <div className="h-64 bg-muted animate-pulse rounded" />
+          </div>
+        ) : (
+          <>
+            {viewMode === 'list' && (
+              <TaskListView 
+                tasks={tasks} 
+                onEdit={handleEdit} 
+                onDelete={handleDelete} 
+                onStatusChange={handleStatusChange} 
+                onToggleComplete={handleToggleComplete} 
+                initialStatusFilter={initialStatusFilter} 
+                initialOwnerFilter={initialOwnerFilter}
+                selectedTasks={selectedTasks}
+                onSelectionChange={setSelectedTasks}
+              />
+            )}
+            {viewMode === 'kanban' && (
+              <TaskKanbanView 
+                tasks={tasks} 
+                onEdit={handleEdit} 
+                onDelete={handleDelete} 
+                onStatusChange={handleStatusChange}
+              />
+            )}
+            {viewMode === 'calendar' && (
+              <TaskCalendarView 
+                tasks={tasks} 
+                onEdit={handleEdit}
+              />
+            )}
+          </>
         )}
       </div>
 

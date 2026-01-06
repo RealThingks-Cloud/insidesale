@@ -9,6 +9,7 @@ import SecurityEnhancedApp from "@/components/SecurityEnhancedApp";
 import { AppSidebar } from "@/components/AppSidebar";
 import PageAccessGuard from "@/components/PageAccessGuard";
 import { useState, lazy, Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -24,14 +25,36 @@ const Notifications = lazy(() => import("./pages/Notifications"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 const StickyHeaderTest = lazy(() => import("./pages/StickyHeaderTest"));
 
-const queryClient = new QueryClient();
+// QueryClient with optimized defaults to reduce refetching
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000, // 30 seconds - data stays fresh, no refetch on mount
+      gcTime: 10 * 60 * 1000, // 10 minutes cache
+      refetchOnWindowFocus: false, // Don't refetch when user switches tabs
+      retry: 1, // Reduce retries to avoid long waits
+    },
+  },
+});
 
-// Loading fallback component
+// Loading fallback for auth page (full screen)
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="text-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
       <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
+
+// Lightweight content loader - shows skeleton in content area only
+const ContentLoader = () => (
+  <div className="h-screen flex flex-col bg-background p-6">
+    <Skeleton className="h-8 w-48 mb-6" />
+    <div className="space-y-4 flex-1">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-64 w-full" />
+      <Skeleton className="h-32 w-full" />
     </div>
   </div>
 );
@@ -81,10 +104,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   // Use FixedSidebarLayout for all protected routes with Page Access Guard
+  // Suspense is inside layout so sidebar stays visible while content loads
   return (
     <FixedSidebarLayout>
       <PageAccessGuard>
-        {children}
+        <Suspense fallback={<ContentLoader />}>
+          {children}
+        </Suspense>
       </PageAccessGuard>
     </FixedSidebarLayout>
   );
@@ -112,71 +138,75 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// App Router Component with Suspense for lazy-loaded pages
+// App Router Component - Suspense moved inside ProtectedRoute for instant sidebar
 const AppRouter = () => (
   <BrowserRouter>
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* Public test route for sticky header verification */}
-        <Route path="/sticky-header-test" element={<StickyHeaderTest />} />
-        <Route path="/auth" element={
+    <Routes>
+      {/* Public test route for sticky header verification */}
+      <Route path="/sticky-header-test" element={
+        <Suspense fallback={<PageLoader />}>
+          <StickyHeaderTest />
+        </Suspense>
+      } />
+      <Route path="/auth" element={
+        <Suspense fallback={<PageLoader />}>
           <AuthRoute>
             <Auth />
           </AuthRoute>
-        } />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/accounts" element={
-          <ProtectedRoute>
-            <Accounts />
-          </ProtectedRoute>
-        } />
-        <Route path="/contacts" element={
-          <ProtectedRoute>
-            <Contacts />
-          </ProtectedRoute>
-        } />
-        <Route path="/leads" element={
-          <ProtectedRoute>
-            <Leads />
-          </ProtectedRoute>
-        } />
-        <Route path="/meetings" element={
-          <ProtectedRoute>
-            <Meetings />
-          </ProtectedRoute>
-        } />
-        <Route path="/deals" element={
-          <ProtectedRoute>
-            <DealsPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/notifications" element={
-          <ProtectedRoute>
-            <Notifications />
-          </ProtectedRoute>
-        } />
-        <Route path="/tasks" element={
-          <ProtectedRoute>
-            <Tasks />
-          </ProtectedRoute>
-        } />
-        <Route path="/settings" element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        } />
-        <Route path="*" element={
-          <ProtectedRoute>
-            <NotFound />
-          </ProtectedRoute>
-        } />
-      </Routes>
-    </Suspense>
+        </Suspense>
+      } />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/accounts" element={
+        <ProtectedRoute>
+          <Accounts />
+        </ProtectedRoute>
+      } />
+      <Route path="/contacts" element={
+        <ProtectedRoute>
+          <Contacts />
+        </ProtectedRoute>
+      } />
+      <Route path="/leads" element={
+        <ProtectedRoute>
+          <Leads />
+        </ProtectedRoute>
+      } />
+      <Route path="/meetings" element={
+        <ProtectedRoute>
+          <Meetings />
+        </ProtectedRoute>
+      } />
+      <Route path="/deals" element={
+        <ProtectedRoute>
+          <DealsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/notifications" element={
+        <ProtectedRoute>
+          <Notifications />
+        </ProtectedRoute>
+      } />
+      <Route path="/tasks" element={
+        <ProtectedRoute>
+          <Tasks />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      } />
+      <Route path="*" element={
+        <ProtectedRoute>
+          <NotFound />
+        </ProtectedRoute>
+      } />
+    </Routes>
   </BrowserRouter>
 );
 

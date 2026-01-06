@@ -33,34 +33,74 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Update email history with open tracking
-    const { error } = await supabase
+    // Fetch email record to get current open_count and entity references
+    const { data: emailData, error: fetchError } = await supabase
       .from("email_history")
-      .update({
-        status: "opened",
-        open_count: supabase.rpc("increment_open_count", { row_id: emailId }),
-        opened_at: new Date().toISOString(),
-      })
-      .eq("id", emailId);
-
-    // Simple increment approach
-    const { data: emailData } = await supabase
-      .from("email_history")
-      .select("open_count")
+      .select("open_count, contact_id, lead_id, account_id")
       .eq("id", emailId)
       .single();
 
-    if (emailData) {
-      await supabase
-        .from("email_history")
-        .update({
-          status: "opened",
-          open_count: (emailData.open_count || 0) + 1,
-          opened_at: new Date().toISOString(),
-        })
-        .eq("id", emailId);
+    if (fetchError) {
+      console.error("Error fetching email record:", fetchError);
+      return new Response(TRACKING_PIXEL, {
+        headers: {
+          "Content-Type": "image/gif",
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
+      });
+    }
 
-      console.log(`Successfully tracked open for email ${emailId}`);
+    const currentOpenCount = emailData?.open_count || 0;
+    const isFirstOpen = currentOpenCount === 0;
+
+    // Update email history with open tracking
+    const { error: updateError } = await supabase
+      .from("email_history")
+      .update({
+        status: "opened",
+        open_count: currentOpenCount + 1,
+        opened_at: isFirstOpen ? new Date().toISOString() : undefined,
+      })
+      .eq("id", emailId);
+
+    if (updateError) {
+      console.error("Error updating email history:", updateError);
+    } else {
+      console.log(`Successfully tracked open for email ${emailId}, total opens: ${currentOpenCount + 1}`);
+    }
+
+    // Update contact/lead email_opens and engagement_score if this is the first open
+    if (isFirstOpen && emailData) {
+      if (emailData.contact_id) {
+        const { data: contact } = await supabase
+          .from("contacts")
+          .select("email_opens, engagement_score")
+          .eq("id", emailData.contact_id)
+          .single();
+
+        if (contact) {
+          const newOpens = (contact.email_opens || 0) + 1;
+          const newScore = Math.min((contact.engagement_score || 0) + 5, 100);
+          
+          await supabase
+            .from("contacts")
+            .update({
+              email_opens: newOpens,
+              engagement_score: newScore,
+            })
+            .eq("id", emailData.contact_id);
+          
+          console.log(`Updated contact ${emailData.contact_id} - opens: ${newOpens}, score: ${newScore}`);
+        }
+      }
+
+      if (emailData.lead_id) {
+        console.log(`Email associated with lead ${emailData.lead_id} - opened`);
+      }
+
+      if (emailData.account_id) {
+        console.log(`Email associated with account ${emailData.account_id} - opened`);
+      }
     }
 
     // Return the tracking pixel

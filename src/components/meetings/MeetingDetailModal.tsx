@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { getMeetingStatus } from "@/utils/meetingStatus";
 import { MeetingFollowUpsSection } from "./MeetingFollowUpsSection";
+import { RecordChangeHistory } from "@/components/shared/RecordChangeHistory";
 import { TaskModal } from "@/components/tasks/TaskModal";
 
 interface Meeting {
@@ -272,10 +273,11 @@ export const MeetingDetailModal = ({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="followups">Follow-ups</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="related">Related</TabsTrigger>
           </TabsList>
 
@@ -369,14 +371,25 @@ export const MeetingDetailModal = ({
           <TabsContent value="activity" className="mt-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Activity Timeline</CardTitle>
+                <CardTitle className="text-base">Meeting Notes & Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Activity tracking coming soon</p>
-                  <p className="text-xs mt-1">Meeting history and changes will be displayed here</p>
-                </div>
+                {meeting.notes ? (
+                  <p className="text-sm whitespace-pre-wrap">{meeting.notes}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No notes recorded for this meeting</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Change History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RecordChangeHistory entityType="meetings" entityId={meeting.id} maxHeight="300px" />
               </CardContent>
             </Card>
           </TabsContent>

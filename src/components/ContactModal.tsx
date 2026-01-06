@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { X, ChevronDown, Plus } from "lucide-react";
+import { X, ChevronDown, Plus, Loader2 } from "lucide-react";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
 import { AccountModal } from "./AccountModal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -342,13 +342,13 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {/* Duplicate Warning */}
             {!contact && duplicates.length > 0 && (
               <DuplicateWarning duplicates={duplicates} entityType="contact" />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField
                 control={form.control}
                 name="contact_name"
@@ -357,7 +357,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                     <FormLabel>Contact Name *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="Contact Name" 
+                        placeholder="e.g., Jane Doe"
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
@@ -379,7 +379,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select account" />
+                          <SelectValue placeholder="Select account..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -436,7 +436,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                   <FormItem>
                     <FormLabel>Position</FormLabel>
                     <FormControl>
-                      <Input placeholder="CEO" {...field} />
+                      <Input placeholder="e.g., CEO, Sales Manager" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -452,7 +452,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                     <FormControl>
                       <Input 
                         type="email" 
-                        placeholder="email@example.com" 
+                        placeholder="e.g., name@company.com" 
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
@@ -502,7 +502,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select source" />
+                          <SelectValue placeholder="Select source..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -599,7 +599,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
               <Button type="submit" disabled={loading}>
                 {loading ? (
                   <>
-                    <span className="animate-spin mr-2">⏳</span>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {contact ? "Saving..." : "Creating..."}
                   </>
                 ) : contact ? "Save Changes" : "Add Contact"}

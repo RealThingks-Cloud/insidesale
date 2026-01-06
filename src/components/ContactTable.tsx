@@ -28,7 +28,7 @@ import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
 import { useTasks } from "@/hooks/useTasks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Export ref interface for parent component
 export interface ContactTableRef {
@@ -96,10 +96,9 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
 }, ref) => {
   const { toast } = useToast();
   const { logDelete, logBulkDelete } = useCRUDAudit();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -166,22 +165,8 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   
-  // Handle viewId from URL (from global search)
-  const viewId = searchParams.get('viewId');
-  useEffect(() => {
-    if (viewId && contacts.length > 0) {
-      const contactToView = contacts.find(c => c.id === viewId);
-      if (contactToView) {
-        setViewingContact(contactToView);
-        setShowDetailModal(true);
-        // Clear the viewId from URL after opening
-        setSearchParams(prev => {
-          prev.delete('viewId');
-          return prev;
-        }, { replace: true });
-      }
-    }
-  }, [viewId, contacts, setSearchParams]);
+  // viewId effect is moved below the contacts query
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [sortField, setSortField] = useState<string | null>(null);
@@ -205,28 +190,20 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
     setTaskModalOpen(true);
   };
 
-  // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    handleBulkDelete,
-    getSelectedContactsForEmail: () => {
-      return contacts.filter(
-        contact => selectedContacts.includes(contact.id) && contact.email
-      );
-    }
-  }), [selectedContacts, contacts]);
-
-  // Fetch all profiles for owner dropdown
+  // Fetch all profiles for owner dropdown with caching
   const { data: allProfiles = [] } = useQuery({
     queryKey: ['all-profiles'],
     queryFn: async () => {
       const { data } = await supabase.from('profiles').select('id, full_name');
       return data || [];
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const fetchContacts = async () => {
-    try {
-      setLoading(true);
+  // Fetch contacts with React Query caching
+  const { data: contacts = [], isLoading: loading, refetch: refetchContacts } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('contacts')
         .select(`
@@ -242,28 +219,46 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
       if (error) throw error;
 
       // Transform data to include account fields
-      const transformedData = (data || []).map(contact => ({
+      return (data || []).map(contact => ({
         ...contact,
         account_company_name: contact.accounts?.company_name || contact.company_name || null,
         account_industry: contact.accounts?.industry,
         account_region: contact.accounts?.region,
-      }));
+      })) as Contact[];
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
-      setContacts(transformedData);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch contacts. Please refresh the page.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+  const fetchContacts = () => {
+    refetchContacts();
   };
 
+  // Handle viewId from URL (from global search)
+  const viewId = searchParams.get('viewId');
   useEffect(() => {
-    fetchContacts();
-  }, []);
+    if (viewId && contacts.length > 0) {
+      const contactToView = contacts.find(c => c.id === viewId);
+      if (contactToView) {
+        setViewingContact(contactToView);
+        setShowDetailModal(true);
+        // Clear the viewId from URL after opening
+        setSearchParams(prev => {
+          prev.delete('viewId');
+          return prev;
+        }, { replace: true });
+      }
+    }
+  }, [viewId, contacts, setSearchParams]);
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    handleBulkDelete,
+    getSelectedContactsForEmail: () => {
+      return contacts.filter(
+        contact => selectedContacts.includes(contact.id) && contact.email
+      );
+    }
+  }), [selectedContacts, contacts]);
 
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
@@ -340,10 +335,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   };
 
   const getSortIcon = (field: string) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />;
-    }
-    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />;
+    return null; // Hide sort icons but keep sorting on click
   };
 
   const handleDelete = async (id: string) => {
@@ -669,7 +661,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                 pageContacts.map(contact => (
                   <TableRow
                     key={contact.id}
-                    className="hover:bg-muted/20 border-b group"
+                    className={`hover:bg-muted/30 border-b group transition-colors ${selectedContacts.includes(contact.id) ? 'bg-primary/5' : ''}`}
                     data-state={selectedContacts.includes(contact.id) ? "selected" : undefined}
                   >
                     <TableCell className="text-center px-4 py-3">
