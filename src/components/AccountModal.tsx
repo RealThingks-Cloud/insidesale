@@ -51,6 +51,7 @@ interface AccountModalProps {
   onOpenChange: (open: boolean) => void;
   account?: Account | null;
   onSuccess: () => void;
+  onCreated?: (account: Account) => void;
 }
 
 const statuses = ["New", "Working", "Warm", "Hot", "Nurture", "Closed-Won", "Closed-Lost"];
@@ -72,7 +73,7 @@ const companyTypes = ["OEM", "Tier-1", "Tier-2", "Startup", "Enterprise", "SMB",
 
 
 
-export const AccountModal = ({ open, onOpenChange, account, onSuccess }: AccountModalProps) => {
+export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated }: AccountModalProps) => {
   const { toast } = useToast();
   const { logCreate, logUpdate } = useCRUDAudit();
   const [loading, setLoading] = useState(false);
@@ -258,6 +259,11 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess }: Account
           title: "Success",
           description: "Account created successfully",
         });
+
+        // Call onCreated callback if provided
+        if (onCreated && newAccount) {
+          onCreated(newAccount as Account);
+        }
       }
 
       onSuccess();

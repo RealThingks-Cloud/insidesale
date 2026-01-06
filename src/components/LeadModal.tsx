@@ -13,8 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { LEAD_SOURCES } from "@/utils/leadStatusUtils";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
+import { AccountModal } from "./AccountModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const leadSchema = z.object({
   lead_name: z.string()
@@ -71,6 +74,14 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+
+  // Handler for when a new account is created
+  const handleAccountCreated = (newAccount: Account) => {
+    setAccounts(prev => [...prev, newAccount].sort((a, b) => a.company_name.localeCompare(b.company_name)));
+    form.setValue('account_id', newAccount.id);
+    setAccountModalOpen(false);
+  };
 
   // Duplicate detection for leads
   const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
@@ -357,13 +368,34 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <div className="px-2 py-1">
+                        <div className="px-2 py-1 flex gap-1">
                           <Input
                             placeholder="Search accounts..."
                             value={accountSearch}
                             onChange={(e) => setAccountSearch(e.target.value)}
                             inputSize="control"
+                            className="flex-1"
                           />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setAccountModalOpen(true);
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Add new account</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                         {filteredAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
@@ -543,6 +575,14 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
           </form>
         </Form>
       </DialogContent>
+
+      {/* Nested Account Modal */}
+      <AccountModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onSuccess={() => {}}
+        onCreated={handleAccountCreated}
+      />
     </Dialog>
   );
 };
