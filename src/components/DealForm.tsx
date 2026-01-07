@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,8 +9,6 @@ import { Deal, DealStage, getNextStage, getFinalStageOptions, getStageIndex, DEA
 import { useToast } from "@/hooks/use-toast";
 import { validateRequiredFields, getFieldErrors, validateDateLogic, validateRevenueSum } from "./deal-form/validation";
 import { DealStageForm } from "./deal-form/DealStageForm";
-import { TaskModal } from "./tasks/TaskModal";
-import { useTasks } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 
@@ -24,14 +23,13 @@ interface DealFormProps {
 }
 
 export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, initialStage, onRefresh }: DealFormProps) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<Partial<Deal>>({});
   const [loading, setLoading] = useState(false);
   const [showPreviousStages, setShowPreviousStages] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showValidationErrors, setShowValidationErrors] = useState(false);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
   const { toast } = useToast();
-  const { createTask } = useTasks();
 
   // NEW: Track current user id for default Lead Owner
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -299,14 +297,24 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
   const canSave = true; // Always allow saving
 
   const handleActionButtonClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent form submission
-    e.stopPropagation(); // Stop event bubbling
-    setTaskModalOpen(true);
+    e.preventDefault();
+    e.stopPropagation();
+    if (!deal) return;
+    const params = new URLSearchParams({
+      create: '1',
+      module: 'deals',
+      recordId: deal.id,
+      recordName: deal.project_name || deal.deal_name || 'Deal',
+      return: '/deals',
+      returnViewId: deal.id,
+    });
+    onClose();
+    navigate(`/tasks?${params.toString()}`);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" disableOutsidePointerEvents={false}>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -424,14 +432,6 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
           </div>
         </form>
       </DialogContent>
-      
-      {/* Task Modal */}
-      <TaskModal
-        open={taskModalOpen}
-        onOpenChange={setTaskModalOpen}
-        onSubmit={createTask}
-        context={deal ? { module: 'deals', recordId: deal.id, locked: true } : undefined}
-      />
     </Dialog>
   );
 };

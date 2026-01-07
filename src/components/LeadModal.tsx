@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { LEAD_SOURCES } from "@/utils/leadStatusUtils";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
+import { MergeRecordsModal } from "./shared/MergeRecordsModal";
 import { AccountModal } from "./AccountModal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -75,6 +76,10 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  
+  // Merge modal state
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<string>("");
 
   // Handler for when a new account is created
   const handleAccountCreated = (newAccount: Account) => {
@@ -317,7 +322,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" disableOutsidePointerEvents={false}>
         <DialogHeader>
           <DialogTitle>
             {lead ? "Edit Lead" : "Add New Lead"}
@@ -328,7 +333,15 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {/* Duplicate Warning */}
             {!lead && duplicates.length > 0 && (
-              <DuplicateWarning duplicates={duplicates} entityType="lead" />
+              <DuplicateWarning 
+                duplicates={duplicates} 
+                entityType="lead"
+                onMerge={(duplicateId) => {
+                  setMergeTargetId(duplicateId);
+                  setMergeModalOpen(true);
+                }}
+                preventCreation={duplicates.some(d => d.matchType === "exact")}
+              />
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -583,6 +596,24 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         onSuccess={() => {}}
         onCreated={handleAccountCreated}
       />
+
+      {/* Merge Modal */}
+      {mergeTargetId && (
+        <MergeRecordsModal
+          open={mergeModalOpen}
+          onOpenChange={(open) => {
+            setMergeModalOpen(open);
+            if (!open) setMergeTargetId("");
+          }}
+          entityType="leads"
+          sourceId=""
+          targetId={mergeTargetId}
+          onSuccess={() => {
+            onSuccess();
+            onOpenChange(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 };

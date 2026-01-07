@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { X, ChevronDown } from "lucide-react";
 import { Account } from "./AccountTable";
 import { DuplicateWarning } from "./shared/DuplicateWarning";
+import { MergeRecordsModal } from "./shared/MergeRecordsModal";
 import { regions, regionCountries } from "@/utils/countryData";
 
 const accountSchema = z.object({
@@ -79,6 +80,10 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+  
+  // Merge modal state
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<string>("");
 
   // Duplicate detection for accounts
   const { duplicates, isChecking, checkDuplicates, clearDuplicates } = useDuplicateDetection({
@@ -281,7 +286,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" disableOutsidePointerEvents={false}>
         <DialogHeader>
           <DialogTitle>
             {account ? "Edit Account" : "Add New Account"}
@@ -292,7 +297,15 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {/* Duplicate Warning */}
             {!account && duplicates.length > 0 && (
-              <DuplicateWarning duplicates={duplicates} entityType="account" />
+              <DuplicateWarning 
+                duplicates={duplicates} 
+                entityType="account"
+                onMerge={(duplicateId) => {
+                  setMergeTargetId(duplicateId);
+                  setMergeModalOpen(true);
+                }}
+                preventCreation={duplicates.some(d => d.matchType === "exact")}
+              />
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -607,6 +620,24 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
           </form>
         </Form>
       </DialogContent>
+
+      {/* Merge Modal */}
+      {mergeTargetId && (
+        <MergeRecordsModal
+          open={mergeModalOpen}
+          onOpenChange={(open) => {
+            setMergeModalOpen(open);
+            if (!open) setMergeTargetId("");
+          }}
+          entityType="accounts"
+          sourceId=""
+          targetId={mergeTargetId}
+          onSuccess={() => {
+            onSuccess();
+            onOpenChange(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 };

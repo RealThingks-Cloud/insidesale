@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -11,6 +12,20 @@ interface PagePermission {
   user_access: boolean;
 }
 
+interface AccessSnapshot {
+  role: string;
+  permissions: PagePermission[];
+  profile: {
+    id?: string;
+    full_name?: string;
+    email?: string;
+    avatar_url?: string;
+    phone?: string;
+    timezone?: string;
+  };
+  computed_at: string;
+}
+
 interface PermissionsContextType {
   userRole: string;
   isAdmin: boolean;
@@ -19,6 +34,7 @@ interface PermissionsContextType {
   loading: boolean;
   hasPageAccess: (route: string) => boolean;
   refreshPermissions: () => Promise<void>;
+  userProfile: AccessSnapshot['profile'] | null;
 }
 
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
@@ -37,83 +53,60 @@ interface PermissionsProviderProps {
 
 export const PermissionsProvider = ({ children }: PermissionsProviderProps) => {
   const { user, loading: authLoading } = useAuth();
-  const [userRole, setUserRole] = useState<string>('user');
-  const [permissions, setPermissions] = useState<PagePermission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasFetched, setHasFetched] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchPermissions = useCallback(async () => {
-    if (!user) {
-      setUserRole('user');
-      setPermissions([]);
-      setLoading(false);
-      setHasFetched(false);
-      return;
-    }
-
-    // Skip if already fetched for this user
-    if (hasFetched) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Fetch role and permissions in parallel
-      const [roleResult, permissionsResult] = await Promise.all([
-        supabase.rpc('get_user_role', { p_user_id: user.id }),
-        supabase.from('page_permissions').select('*')
-      ]);
-
-      // Handle role
-      if (roleResult.error) {
-        console.error('Error fetching user role:', roleResult.error);
-        setUserRole('user');
-      } else {
-        setUserRole(roleResult.data || 'user');
+  // Use React Query with the new RPC for access snapshot
+  // 24 hour staleTime - the RPC handles version checking internally
+  const { data: snapshot, isLoading: snapshotLoading } = useQuery({
+    queryKey: ['access-snapshot', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_my_access_snapshot');
+      
+      if (error) {
+        console.error('Error fetching access snapshot:', error);
+        // Fallback to default permissions
+        return {
+          role: 'user',
+          permissions: [],
+          profile: {},
+          computed_at: new Date().toISOString()
+        } as AccessSnapshot;
       }
 
-      // Handle permissions
-      if (permissionsResult.error) {
-        console.error('Error fetching permissions:', permissionsResult.error);
-        setPermissions([]);
-      } else {
-        setPermissions(permissionsResult.data || []);
+      // RPC returns an array with one row
+      const result = data?.[0];
+      if (!result) {
+        return {
+          role: 'user',
+          permissions: [],
+          profile: {},
+          computed_at: new Date().toISOString()
+        } as AccessSnapshot;
       }
 
-      setHasFetched(true);
-    } catch (error) {
-      console.error('Error fetching permissions:', error);
-      setUserRole('user');
-      setPermissions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, hasFetched]);
+      return {
+        role: result.role || 'user',
+        permissions: Array.isArray(result.permissions) ? (result.permissions as unknown as PagePermission[]) : [],
+        profile: (result.profile || {}) as AccessSnapshot['profile'],
+        computed_at: result.computed_at
+      } as AccessSnapshot;
+    },
+    enabled: !!user,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours - RPC handles version invalidation
+    gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+  });
 
-  // Fetch on user change
-  useEffect(() => {
-    if (authLoading) return;
-    
-    if (user) {
-      fetchPermissions();
-    } else {
-      setUserRole('user');
-      setPermissions([]);
-      setLoading(false);
-      setHasFetched(false);
-    }
-  }, [user, authLoading, fetchPermissions]);
-
-  // Reset hasFetched when user changes
-  useEffect(() => {
-    setHasFetched(false);
-  }, [user?.id]);
+  const userRole = snapshot?.role || 'user';
+  const permissions = snapshot?.permissions || [];
+  const userProfile = snapshot?.profile || null;
 
   const refreshPermissions = useCallback(async () => {
-    setHasFetched(false);
-    await fetchPermissions();
-  }, [fetchPermissions]);
+    // Invalidate the access snapshot query to force refetch
+    await queryClient.invalidateQueries({ queryKey: ['access-snapshot', user?.id] });
+  }, [queryClient, user?.id]);
 
   const hasPageAccess = useCallback((route: string): boolean => {
     // Normalize route
@@ -142,15 +135,19 @@ export const PermissionsProvider = ({ children }: PermissionsProviderProps) => {
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
 
+  // Only show loading on initial load when there's no cached data
+  const loading = authLoading || (snapshotLoading && !snapshot);
+
   const value = useMemo(() => ({
     userRole,
     isAdmin,
     isManager,
     permissions,
-    loading: loading || authLoading,
+    loading,
     hasPageAccess,
-    refreshPermissions
-  }), [userRole, isAdmin, isManager, permissions, loading, authLoading, hasPageAccess, refreshPermissions]);
+    refreshPermissions,
+    userProfile
+  }), [userRole, isAdmin, isManager, permissions, loading, hasPageAccess, refreshPermissions, userProfile]);
 
   return (
     <PermissionsContext.Provider value={value}>

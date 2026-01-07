@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +11,10 @@ import { Search, Filter, X, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Brief
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RowActionsDropdown, Edit, Trash2, CheckSquare } from "./RowActionsDropdown";
 import { format } from "date-fns";
+import { formatDateTimeStandard } from "@/utils/formatUtils";
 import { DealColumnCustomizer, DealColumnConfig, defaultDealColumns } from "./DealColumnCustomizer";
 import { BulkActionsBar } from "./BulkActionsBar";
 import { DealsAdvancedFilter, AdvancedFilterState } from "./DealsAdvancedFilter";
-import { TaskModal } from "./tasks/TaskModal";
-import { useTasks } from "@/hooks/useTasks";
 import { InlineEditCell } from "./InlineEditCell";
 
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import { DeleteConfirmDialog } from "./shared/DeleteConfirmDialog";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { HighlightedText } from "./shared/HighlightedText";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
+import { moveFieldToEnd } from "@/utils/columnOrderUtils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -83,10 +84,7 @@ export const ListView = ({
     onSelectionChange?.(Array.from(selectedDeals));
   }, [selectedDeals, onSelectionChange]);
   
-  // Task Modal state
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [taskDealId, setTaskDealId] = useState<string | null>(null);
-  const { createTask } = useTasks();
+  const navigate = useNavigate();
 
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -95,13 +93,15 @@ export const ListView = ({
   // Column customizer state
   const [columnCustomizerOpen, setColumnCustomizerOpen] = useState(false);
 
-  // Fetch all profiles for lead owner dropdown
+  // Fetch all profiles for lead owner dropdown - use shared cache
   const { data: allProfiles = [] } = useQuery({
     queryKey: ['all-profiles'],
     queryFn: async () => {
       const { data } = await supabase.from('profiles').select('id, full_name');
       return data || [];
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes - profiles rarely change
+    gcTime: 30 * 60 * 1000,
   });
 
   // Use column preferences hook for database persistence
@@ -160,11 +160,7 @@ export const ListView = ({
 
   const formatDate = (date: string | undefined) => {
     if (!date) return '-';
-    try {
-      return format(new Date(date), 'dd/MM/yyyy');
-    } catch {
-      return '-';
-    }
+    return formatDateTimeStandard(date) || '-';
   };
 
   // Stage badge styling (matching Accounts module)
@@ -392,9 +388,10 @@ export const ListView = ({
     return [];
   };
 
-  const visibleColumns = localColumns
-    .filter(col => col.visible)
-    .sort((a, b) => a.order - b.order);
+  const visibleColumns = moveFieldToEnd(
+    localColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
+    "lead_owner",
+  );
 
   // Generate available options for multi-select filters
   const availableOptions = useMemo(() => {
@@ -533,8 +530,15 @@ export const ListView = ({
   const selectedDealObjects = deals.filter(deal => selectedDeals.has(deal.id));
 
   const handleCreateTask = (deal: Deal) => {
-    setTaskDealId(deal.id);
-    setTaskModalOpen(true);
+    const params = new URLSearchParams({
+      create: '1',
+      module: 'deals',
+      recordId: deal.id,
+      recordName: encodeURIComponent(deal.project_name || deal.deal_name || 'Deal'),
+      return: '/deals',
+      returnViewId: deal.id,
+    });
+    navigate(`/tasks?${params.toString()}`);
   };
 
   // Listen for column customizer open event from header
@@ -797,13 +801,6 @@ export const ListView = ({
           onClearSelection={() => setSelectedDeals(new Set())}
         />
       )}
-
-      <TaskModal
-        open={taskModalOpen}
-        onOpenChange={setTaskModalOpen}
-        onSubmit={createTask}
-        context={taskDealId ? { module: 'deals', recordId: taskDealId, locked: true } : undefined}
-      />
 
       <DealColumnCustomizer
         open={columnCustomizerOpen}

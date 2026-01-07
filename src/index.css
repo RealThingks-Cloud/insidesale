@@ -19,7 +19,7 @@ All colors MUST be HSL.
     --popover-foreground: 222 47% 11%;
 
     /* Light Blue theme with soft accents */
-    --primary: 200 98% 39%;
+    --primary: 200 98% 32%;
     --primary-foreground: 0 0% 100%;
     --primary-variant: 204 94% 45%;
 
@@ -194,25 +194,14 @@ All colors MUST be HSL.
   }
 }
 
-/* Shimmer animation for skeleton loading */
+/* Shimmer animation for skeleton loading - keyframe only */
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: 200% 0;
+    transform: translateX(100%);
   }
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 25%,
-    hsl(var(--muted) / 0.5) 50%,
-    hsl(var(--muted)) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1s ease-in-out infinite;
 }
 
 /* Improved placeholder visibility (#24) */
@@ -352,7 +341,7 @@ All colors MUST be HSL.
 
   /* Skeleton shimmer animation */
   .skeleton-shimmer {
-    @apply bg-muted/60 rounded-lg relative overflow-hidden;
+    @apply bg-muted/40 rounded-lg relative overflow-hidden;
   }
   
   .skeleton-shimmer::after {
@@ -366,16 +355,10 @@ All colors MUST be HSL.
     background: linear-gradient(
       90deg,
       transparent,
-      hsl(var(--muted) / 0.4),
+      hsl(var(--background) / 0.6),
       transparent
     );
-    animation: shimmer 1s infinite;
-  }
-  
-  @keyframes shimmer {
-    100% {
-      transform: translateX(100%);
-    }
+    animation: shimmer 1.5s infinite;
   }
 
   /* Widget card base styling */
@@ -431,4 +414,66 @@ All colors MUST be HSL.
   .rich-text-editor .ql-editor.ql-blank::before {
     @apply text-muted-foreground;
   }
+}
+
+/* Smooth Dialog Animations */
+@keyframes dialog-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes dialog-content-in {
+  from { 
+    opacity: 0; 
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes dialog-content-out {
+  from { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to { 
+    opacity: 0; 
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+}
+
+[data-state="open"] > [data-radix-dialog-overlay] {
+  animation: dialog-overlay-in 0.2s ease-out;
+}
+
+[data-state="closed"] > [data-radix-dialog-overlay] {
+  animation: dialog-overlay-out 0.15s ease-in;
+}
+
+[data-state="open"] > [data-radix-dialog-content] {
+  animation: dialog-content-in 0.25s ease-out;
+}
+
+[data-state="closed"] > [data-radix-dialog-content] {
+  animation: dialog-content-out 0.2s ease-in;
+}
+
+/* Ensure dialog content always has pointer events enabled */
+[data-radix-dialog-content] {
+  pointer-events: auto !important;
+}
+
+/* Ensure inputs within dialogs are always interactive */
+[data-radix-dialog-content] input,
+[data-radix-dialog-content] textarea,
+[data-radix-dialog-content] select,
+[data-radix-dialog-content] button {
+  pointer-events: auto !important;
 }

@@ -10,10 +10,14 @@ interface PageAccessGuardProps {
 const PageAccessGuard = ({ children }: PageAccessGuardProps) => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { hasPageAccess, loading: permissionsLoading } = usePermissions();
+  const { hasPageAccess, loading: permissionsLoading, permissions } = usePermissions();
 
-  // Only show loading during initial app load
-  if (authLoading || permissionsLoading) {
+  // Only show full loading on initial app load when we have NO cached data at all
+  // If we have cached permissions (from React Query persistence), render immediately
+  const hasCachedData = permissions.length > 0;
+  const showLoader = authLoading || (permissionsLoading && !hasCachedData);
+
+  if (showLoader) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">

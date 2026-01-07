@@ -1213,6 +1213,7 @@ export type Database = {
           company_name: string | null
           contact_owner: string | null
           contact_source: string | null
+          converted_from_contact_id: string | null
           country: string | null
           created_by: string | null
           created_time: string | null
@@ -1234,6 +1235,7 @@ export type Database = {
           company_name?: string | null
           contact_owner?: string | null
           contact_source?: string | null
+          converted_from_contact_id?: string | null
           country?: string | null
           created_by?: string | null
           created_time?: string | null
@@ -1255,6 +1257,7 @@ export type Database = {
           company_name?: string | null
           contact_owner?: string | null
           contact_source?: string | null
+          converted_from_contact_id?: string | null
           country?: string | null
           created_by?: string | null
           created_time?: string | null
@@ -1277,6 +1280,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_converted_from_contact_id_fkey"
+            columns: ["converted_from_contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -2058,6 +2068,42 @@ export type Database = {
           },
         ]
       }
+      user_access_cache: {
+        Row: {
+          cache_date: string
+          computed_at: string
+          id: string
+          permissions: Json
+          permissions_updated_at: string | null
+          profile: Json | null
+          role: string
+          role_assigned_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cache_date?: string
+          computed_at?: string
+          id?: string
+          permissions?: Json
+          permissions_updated_at?: string | null
+          profile?: Json | null
+          role?: string
+          role_assigned_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cache_date?: string
+          computed_at?: string
+          id?: string
+          permissions?: Json
+          permissions_updated_at?: string | null
+          profile?: Json | null
+          role?: string
+          role_assigned_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_preferences: {
         Row: {
           created_at: string | null
@@ -2205,6 +2251,15 @@ export type Database = {
       calculate_contact_score: {
         Args: { p_contact_id: string }
         Returns: number
+      }
+      get_my_access_snapshot: {
+        Args: never
+        Returns: {
+          computed_at: string
+          permissions: Json
+          profile: Json
+          role: string
+        }[]
       }
       get_user_role: { Args: { p_user_id: string }; Returns: string }
       is_current_user_admin: { Args: never; Returns: boolean }

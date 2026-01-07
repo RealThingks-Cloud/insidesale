@@ -30,8 +30,10 @@ import {
   Activity,
   Loader2,
   Plus,
+  History,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatDateTimeStandard } from '@/utils/formatUtils';
 
 interface TaskDetailModalProps {
   open: boolean;
@@ -188,14 +190,19 @@ export const TaskDetailModal = ({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="subtasks">
-              Subtasks {subtasks.length > 0 && `(${completedSubtasks}/${subtasks.length})`}
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview" className="flex items-center gap-1">
+              <CheckSquare className="h-4 w-4" />
+              Overview
             </TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="related">Related</TabsTrigger>
+            <TabsTrigger value="activity" className="flex items-center gap-1">
+              <Activity className="h-4 w-4" />
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-1">
+              <History className="h-4 w-4" />
+              History
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4 mt-4">
@@ -254,56 +261,34 @@ export const TaskDetailModal = ({
                   <CardTitle className="text-base">Linked To</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-3">
-                    <linkedEntity.icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{linkedEntity.name}</span>
-                    <Badge variant="outline" className="capitalize">{linkedEntity.type}</Badge>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <linkedEntity.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{linkedEntity.name}</p>
+                      <p className="text-sm text-muted-foreground">{linkedEntity.type}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Timestamps */}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              {task.created_at && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Created: {format(new Date(task.created_at), 'dd/MM/yyyy')}
-                </span>
-              )}
-              {task.updated_at && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Updated: {format(new Date(task.updated_at), 'dd/MM/yyyy')}
-                </span>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="subtasks" className="mt-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Subtasks</CardTitle>
-                  {subtasks.length > 0 && (
+            {/* Subtasks */}
+            {subtasks.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ListTodo className="h-4 w-4" />
+                      Subtasks
+                    </CardTitle>
                     <span className="text-sm text-muted-foreground">
                       {completedSubtasks} of {subtasks.length} completed
                     </span>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loadingSubtasks ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : subtasks.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ListTodo className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No subtasks</p>
-                    <p className="text-xs mt-1">Edit the task to add subtasks</p>
-                  </div>
-                ) : (
+                </CardHeader>
+                <CardContent>
                   <div className="space-y-2">
                     {subtasks.map((subtask) => (
                       <div
@@ -320,9 +305,25 @@ export const TaskDetailModal = ({
                       </div>
                     ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Timestamps */}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              {task.created_at && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Created: {formatDateTimeStandard(task.created_at)}
+                </span>
+              )}
+              {task.updated_at && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Updated: {formatDateTimeStandard(task.updated_at)}
+                </span>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="activity" className="mt-4">
@@ -347,33 +348,6 @@ export const TaskDetailModal = ({
               </CardHeader>
               <CardContent>
                 <RecordChangeHistory entityType="tasks" entityId={task.id} maxHeight="300px" />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="related" className="mt-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Linked Entity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {linkedEntity ? (
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <linkedEntity.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{linkedEntity.name}</p>
-                      <p className="text-sm text-muted-foreground">{linkedEntity.type}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Link2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No linked entity</p>
-                    <p className="text-xs mt-1">This task is not linked to any record</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -21,6 +21,7 @@ interface DealColumnCustomizerProps {
   isSaving?: boolean;
 }
 
+// Removed region column - available from linked Account/Customer
 export const defaultDealColumns: DealColumnConfig[] = [
   { field: 'project_name', label: 'Project', visible: true, order: 0 },
   { field: 'customer_name', label: 'Customer', visible: true, order: 1 },
@@ -30,13 +31,12 @@ export const defaultDealColumns: DealColumnConfig[] = [
   { field: 'total_contract_value', label: 'Value', visible: true, order: 5 },
   { field: 'probability', label: 'Probability', visible: true, order: 6 },
   { field: 'expected_closing_date', label: 'Expected Close', visible: true, order: 7 },
-  { field: 'region', label: 'Region', visible: false, order: 8 },
-  { field: 'project_duration', label: 'Duration', visible: false, order: 9 },
-  { field: 'start_date', label: 'Start Date', visible: false, order: 10 },
-  { field: 'end_date', label: 'End Date', visible: false, order: 11 },
-  { field: 'proposal_due_date', label: 'Proposal Due', visible: false, order: 12 },
-  { field: 'total_revenue', label: 'Total Revenue', visible: false, order: 13 },
-  { field: 'lead_owner', label: 'Lead Owner', visible: true, order: 14 },
+  { field: 'project_duration', label: 'Duration', visible: false, order: 8 },
+  { field: 'start_date', label: 'Start Date', visible: false, order: 9 },
+  { field: 'end_date', label: 'End Date', visible: false, order: 10 },
+  { field: 'proposal_due_date', label: 'Proposal Due', visible: false, order: 11 },
+  { field: 'total_revenue', label: 'Total Revenue', visible: false, order: 12 },
+  { field: 'lead_owner', label: 'Lead Owner', visible: true, order: 13 },
 ];
 
 export const DealColumnCustomizer = ({ 

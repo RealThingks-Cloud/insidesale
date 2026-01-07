@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
@@ -24,13 +24,13 @@ import { LeadDeleteConfirmDialog } from "./LeadDeleteConfirmDialog";
 import { AccountDetailModalById } from "./accounts/AccountDetailModalById";
 import { SendEmailModal, EmailRecipient } from "./SendEmailModal";
 import { MeetingModal } from "./MeetingModal";
-import { TaskModal } from "./tasks/TaskModal";
 import { LeadDetailModal } from "./leads/LeadDetailModal";
 import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
-import { useTasks } from "@/hooks/useTasks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { moveFieldToEnd } from "@/utils/columnOrderUtils";
+import { formatDateTimeStandard } from "@/utils/formatUtils";
 
 // Export ref interface for parent component
 export interface LeadTableRef {
@@ -41,24 +41,24 @@ export interface LeadTableRef {
 interface Lead {
   id: string;
   lead_name: string;
-  company_name: string | null;
+  company_name?: string | null;
   account_company_name?: string | null;
   account_id?: string;
-  position: string | null;
-  email: string | null;
-  phone_no: string | null;
+  position?: string | null;
+  email?: string | null;
+  phone_no?: string | null;
   contact_owner?: string;
-  created_time: string | null;
+  created_time?: string | null;
   modified_time?: string;
-  lead_status: string | null;
-  contact_source: string | null;
-  linkedin: string | null;
-  website: string | null;
-  description: string | null;
+  lead_status?: string | null;
+  contact_source?: string | null;
+  linkedin?: string | null;
+  website?: string | null;
+  description?: string | null;
   created_by?: string;
   modified_by?: string;
-  country: string | null;
-  industry: string | null;
+  country?: string | null;
+  industry?: string | null;
 }
 
 const defaultColumns: LeadColumnConfig[] = [{
@@ -154,20 +154,26 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Fetch current user ID for "me" filtering
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
+  // Use cached auth instead of fetching user each time
+  const { data: authData } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        // If owner=me in URL, set the owner filter to current user's ID
-        if (ownerParam === 'me') {
-          setOwnerFilter(user.id);
-        }
+      return user;
+    },
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  // Set current user ID from cached auth
+  useEffect(() => {
+    if (authData) {
+      setCurrentUserId(authData.id);
+      if (ownerParam === 'me') {
+        setOwnerFilter(authData.id);
       }
-    };
-    fetchCurrentUser();
-  }, [ownerParam]);
+    }
+  }, [authData, ownerParam]);
 
   // Sync statusFilter when initialStatus prop changes (from URL)
   useEffect(() => {
@@ -214,10 +220,19 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   const [emailRecipient, setEmailRecipient] = useState<EmailRecipient | null>(null);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [taskLeadId, setTaskLeadId] = useState<string | null>(null);
-  
-  const { createTask } = useTasks();
+  const navigate = useNavigate();
+
+  const handleCreateTask = (lead: Lead) => {
+    const params = new URLSearchParams({
+      create: '1',
+      module: 'leads',
+      recordId: lead.id,
+      recordName: encodeURIComponent(lead.lead_name || 'Lead'),
+      return: '/leads',
+      returnViewId: lead.id,
+    });
+    navigate(`/tasks?${params.toString()}`);
+  };
 
   // Fetch all profiles for owner dropdown with caching
   const { data: allProfiles = [] } = useQuery({
@@ -482,7 +497,10 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
 
   const { displayNames } = useUserDisplayNames(ownerIds);
   
-  const visibleColumns = localColumns.filter(col => col.visible);
+  const visibleColumns = moveFieldToEnd(
+    localColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
+    "contact_owner",
+  );
   const pageLeads = getCurrentPageLeads();
 
   // Check if any filters are active
@@ -521,10 +539,6 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
     setLeadToConvert(null);
   };
 
-  const handleCreateTask = (lead: Lead) => {
-    setTaskLeadId(lead.id);
-    setTaskModalOpen(true);
-  };
 
   const handleViewLead = (lead: Lead) => {
     setViewingLead(lead);
@@ -750,6 +764,12 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                             ) : (
                               <span className="text-center text-muted-foreground w-full block">-</span>
                             )
+                          ) : column.field === 'created_time' || column.field === 'modified_time' ? (
+                            lead[column.field as keyof Lead] ? (
+                              <span className="text-sm">{formatDateTimeStandard(lead[column.field as keyof Lead] as string)}</span>
+                            ) : (
+                              <span className="text-center text-muted-foreground w-full block">-</span>
+                            )
                           ) : (
                             lead[column.field as keyof Lead] ? (
                               <span className="truncate block" title={lead[column.field as keyof Lead]?.toString()}>
@@ -896,14 +916,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
         onSuccess={handleConvertSuccess} 
       />
 
-      <TaskModal
-        open={taskModalOpen}
-        onOpenChange={setTaskModalOpen}
-        onSubmit={createTask}
-        context={taskLeadId ? { module: 'leads', recordId: taskLeadId, locked: true } : undefined}
-      />
-
-      <LeadDeleteConfirmDialog 
+      <LeadDeleteConfirmDialog
         open={showDeleteDialog} 
         onConfirm={handleDelete} 
         onCancel={() => {

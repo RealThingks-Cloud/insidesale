@@ -25,8 +25,6 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { getMeetingStatus } from "@/utils/meetingStatus";
 import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
-import { TaskModal } from "@/components/tasks/TaskModal";
-import { useTasks } from "@/hooks/useTasks";
 
 type SortColumn = 'subject' | 'date' | 'time' | 'lead_contact' | 'status' | null;
 type SortDirection = 'asc' | 'desc';
@@ -65,7 +63,7 @@ const Meetings = () => {
     toast
   } = useToast();
   const queryClient = useQueryClient();
-  const [filteredMeetings, setFilteredMeetings] = useState<Meeting[]>([]);
+  // Removed filteredMeetings state - using sortedAndFilteredMeetings directly
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
@@ -86,14 +84,17 @@ const Meetings = () => {
   // Column customizer state
   const [showColumnCustomizer, setShowColumnCustomizer] = useState(false);
   const [columns, setColumns] = useState<MeetingColumnConfig[]>(defaultMeetingColumns);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [taskMeetingId, setTaskMeetingId] = useState<string | null>(null);
-
-  const { createTask } = useTasks();
 
   const handleCreateTask = (meeting: Meeting) => {
-    setTaskMeetingId(meeting.id);
-    setTaskModalOpen(true);
+    const params = new URLSearchParams({
+      create: '1',
+      module: 'meetings',
+      recordId: meeting.id,
+      recordName: encodeURIComponent(meeting.subject || 'Meeting'),
+      return: '/meetings',
+      returnViewId: meeting.id,
+    });
+    navigate(`/tasks?${params.toString()}`);
   };
 
   // Get owner parameter from URL - "me" means filter by current user
@@ -245,17 +246,20 @@ const Meetings = () => {
     return filtered;
   }, [meetings, searchTerm, statusFilter, organizerFilter, sortColumn, sortDirection]);
 
-  useEffect(() => {
-    setFilteredMeetings(sortedAndFilteredMeetings);
-    setCurrentPage(1); // Reset to first page when filters change
-  }, [sortedAndFilteredMeetings]);
+  // Reset to first page when filters change (without storing filtered in state)
+  const prevFilterKey = useRef('');
+  const filterKey = `${searchTerm}-${statusFilter}-${organizerFilter}`;
+  if (filterKey !== prevFilterKey.current) {
+    prevFilterKey.current = filterKey;
+    if (currentPage !== 1) setCurrentPage(1);
+  }
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredMeetings.length / ITEMS_PER_PAGE);
+  // Use sortedAndFilteredMeetings directly instead of storing in state
+  const totalPages = Math.ceil(sortedAndFilteredMeetings.length / ITEMS_PER_PAGE);
   const paginatedMeetings = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredMeetings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredMeetings, currentPage]);
+    return sortedAndFilteredMeetings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [sortedAndFilteredMeetings, currentPage]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -484,7 +488,7 @@ const Meetings = () => {
                     <Upload className="h-4 w-4 mr-2" />
                     {isImporting ? 'Importing...' : 'Import CSV'}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport(filteredMeetings)} disabled={isExporting || filteredMeetings.length === 0}>
+                  <DropdownMenuItem onClick={() => handleExport(sortedAndFilteredMeetings)} disabled={isExporting || sortedAndFilteredMeetings.length === 0}>
                     <Download className="h-4 w-4 mr-2" />
                     {isExporting ? 'Exporting...' : 'Export CSV'}
                   </DropdownMenuItem>
@@ -520,7 +524,7 @@ const Meetings = () => {
         ) : viewMode === 'calendar' ? (
           <div className="flex-1 min-h-0 overflow-auto">
             <MeetingsCalendarView
-              meetings={filteredMeetings}
+              meetings={sortedAndFilteredMeetings}
               onMeetingClick={(meeting) => {
                 setEditingMeeting(meeting);
                 setShowModal(true);
@@ -653,10 +657,7 @@ const Meetings = () => {
                         {isColumnVisible('subject') && (
                           <TableCell className="px-4 py-3">
                             <button 
-                              onClick={() => {
-                                setEditingMeeting(meeting);
-                                setShowModal(true);
-                              }}
+                              onClick={() => setViewingMeeting(meeting)}
                               className="text-primary hover:underline font-medium text-left truncate"
                             >
                               <HighlightedText text={meeting.subject} highlight={searchTerm} />
@@ -764,7 +765,7 @@ const Meetings = () => {
               <div className="flex items-center justify-between p-4 border-t">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    Showing {filteredMeetings.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredMeetings.length)} of {filteredMeetings.length} meetings
+                    Showing {sortedAndFilteredMeetings.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, sortedAndFilteredMeetings.length)} of {sortedAndFilteredMeetings.length} meetings
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -852,13 +853,6 @@ const Meetings = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Task Modal */}
-      <TaskModal
-        open={taskModalOpen}
-        onOpenChange={setTaskModalOpen}
-        onSubmit={createTask}
-        context={taskMeetingId ? { module: 'meetings', recordId: taskMeetingId, locked: true } : undefined}
-      />
     </div>;
 };
 export default Meetings;

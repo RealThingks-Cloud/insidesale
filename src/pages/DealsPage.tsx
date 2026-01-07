@@ -296,8 +296,6 @@ const DealsPage = () => {
   }, [user, authLoading, navigate]);
   useEffect(() => {
     if (user) {
-      fetchDeals();
-
       // Set up real-time subscription - just invalidate cache on changes
       const channel = supabase.channel('deals-changes').on('postgres_changes', {
         event: '*',
@@ -312,7 +310,7 @@ const DealsPage = () => {
       // Listen for custom import events
       const handleImportEvent = () => {
         console.log('DealsPage: Received deals-data-updated event, refreshing...');
-        fetchDeals();
+        queryClient.invalidateQueries({ queryKey: ['deals'] });
       };
       window.addEventListener('deals-data-updated', handleImportEvent);
       return () => {
@@ -320,7 +318,7 @@ const DealsPage = () => {
         window.removeEventListener('deals-data-updated', handleImportEvent);
       };
     }
-  }, [user]);
+  }, [user, queryClient]);
   // Show skeleton instead of blocking full-screen loader
   const showSkeleton = loading && deals.length === 0;
   

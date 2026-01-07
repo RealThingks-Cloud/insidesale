@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Phone, Mail, Calendar, FileText, CheckSquare } from "lucide-react";
 
@@ -15,43 +14,33 @@ const ACTIVITY_TYPES = [
   { value: 'email', label: 'Email', icon: Mail },
   { value: 'meeting', label: 'Meeting', icon: Calendar },
   { value: 'note', label: 'Note', icon: FileText },
-  { value: 'task', label: 'Task', icon: CheckSquare },
+  { value: 'follow_up', label: 'Follow-up', icon: CheckSquare },
 ];
 
-const OUTCOME_OPTIONS = [
-  { value: 'successful', label: 'Successful' },
-  { value: 'no_answer', label: 'No Answer' },
-  { value: 'follow_up', label: 'Follow-up Required' },
-  { value: 'not_interested', label: 'Not Interested' },
-  { value: 'scheduled', label: 'Scheduled' },
-];
-
-interface ActivityLogModalProps {
+interface MeetingActivityLogModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  accountId: string;
+  meetingId: string;
   onSuccess: () => void;
 }
 
-export const ActivityLogModal = ({ open, onOpenChange, accountId, onSuccess }: ActivityLogModalProps) => {
+export const MeetingActivityLogModal = ({ open, onOpenChange, meetingId, onSuccess }: MeetingActivityLogModalProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    activity_type: 'call',
-    subject: '',
-    description: '',
-    outcome: '',
-    duration_minutes: ''
+    activity_type: 'note',
+    title: '',
+    description: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.subject.trim()) {
+    if (!formData.title.trim()) {
       toast({
-        title: "Missing subject",
-        description: "Please enter a subject for the activity",
+        title: "Missing title",
+        description: "Please enter the activity title",
         variant: "destructive"
       });
       return;
@@ -59,17 +48,15 @@ export const ActivityLogModal = ({ open, onOpenChange, accountId, onSuccess }: A
 
     setLoading(true);
     try {
+      // Create as a meeting follow-up
       const { error } = await supabase
-        .from('account_activities')
+        .from('meeting_follow_ups')
         .insert({
-          account_id: accountId,
-          activity_type: formData.activity_type,
-          subject: formData.subject.trim(),
+          meeting_id: meetingId,
+          title: `[${formData.activity_type.toUpperCase()}] ${formData.title.trim()}`,
           description: formData.description.trim() || null,
-          outcome: formData.outcome || null,
-          duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
-          created_by: user?.id,
-          activity_date: new Date().toISOString()
+          status: 'pending',
+          created_by: user?.id
         });
 
       if (error) throw error;
@@ -78,11 +65,9 @@ export const ActivityLogModal = ({ open, onOpenChange, accountId, onSuccess }: A
       
       // Reset form
       setFormData({
-        activity_type: 'call',
-        subject: '',
-        description: '',
-        outcome: '',
-        duration_minutes: ''
+        activity_type: 'note',
+        title: '',
+        description: ''
       });
       
       onSuccess();
@@ -131,12 +116,12 @@ export const ActivityLogModal = ({ open, onOpenChange, accountId, onSuccess }: A
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="subject">Subject *</Label>
+            <Label htmlFor="title">Activity Title *</Label>
             <Input
-              id="subject"
-              value={formData.subject}
-              onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-              placeholder={`${selectedType?.label} subject...`}
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              placeholder={`${selectedType?.label} details...`}
               required
             />
           </div>
@@ -147,44 +132,9 @@ export const ActivityLogModal = ({ open, onOpenChange, accountId, onSuccess }: A
               id="description"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Add details..."
+              placeholder="Add any additional notes..."
               rows={3}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Outcome</Label>
-              <Select
-                value={formData.outcome}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, outcome: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select outcome" />
-                </SelectTrigger>
-                <SelectContent>
-                  {OUTCOME_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(formData.activity_type === 'call' || formData.activity_type === 'meeting') && (
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (min)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="1"
-                  value={formData.duration_minutes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, duration_minutes: e.target.value }))}
-                  placeholder="e.g., 30"
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

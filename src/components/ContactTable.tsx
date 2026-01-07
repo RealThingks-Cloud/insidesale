@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
@@ -16,19 +16,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, X, Eye, User, CalendarPlus, Pencil, CheckSquare } from "lucide-react";
 import { RowActionsDropdown, Edit, Trash2, Mail, UserPlus } from "./RowActionsDropdown";
 import { ContactDeleteConfirmDialog } from "./ContactDeleteConfirmDialog";
-import { ContactSegmentFilter } from "./ContactSegmentFilter";
+
 import { ContactModal } from "./ContactModal";
 import { ContactColumnCustomizer, ContactColumnConfig, defaultContactColumns } from "./ContactColumnCustomizer";
 import { ContactDetailModal } from "./contacts/ContactDetailModal";
 import { AccountDetailModalById } from "./accounts/AccountDetailModalById";
 import { SendEmailModal } from "./SendEmailModal";
 import { MeetingModal } from "./MeetingModal";
-import { TaskModal } from "./tasks/TaskModal";
+import { ConvertContactToLeadModal } from "./contacts/ConvertContactToLeadModal";
+import { MergeRecordsModal } from "./shared/MergeRecordsModal";
 import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
-import { useTasks } from "@/hooks/useTasks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { moveFieldToEnd } from "@/utils/columnOrderUtils";
+import { formatDateTimeStandard } from "@/utils/formatUtils";
 
 // Export ref interface for parent component
 export interface ContactTableRef {
@@ -63,8 +65,6 @@ interface Contact {
   created_by?: string;
   modified_by?: string;
   tags?: string[];
-  score?: number;
-  segment?: string;
   email_opens?: number;
   email_clicks?: number;
   engagement_score?: number;
@@ -129,22 +129,29 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   
   const [sourceFilter, setSourceFilter] = useState<string>(() => sourceParam || "all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [segmentFilter, setSegmentFilter] = useState<string>("all");
+  
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  // Fetch current user ID for "me" filtering
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
+  // Use cached auth instead of fetching user each time
+  const { data: authData } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        if (ownerParam === 'me') {
-          setOwnerFilter(user.id);
-        }
+      return user;
+    },
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  // Set current user ID from cached auth
+  useEffect(() => {
+    if (authData) {
+      setCurrentUserId(authData.id);
+      if (ownerParam === 'me') {
+        setOwnerFilter(authData.id);
       }
-    };
-    fetchCurrentUser();
-  }, [ownerParam]);
+    }
+  }, [authData, ownerParam]);
 
   // Sync filters when URL changes
   useEffect(() => {
@@ -180,14 +187,28 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [meetingContact, setMeetingContact] = useState<Contact | null>(null);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [taskContactId, setTaskContactId] = useState<string | null>(null);
-
-  const { createTask } = useTasks();
+  
+  // Convert to Lead modal states
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [contactToConvert, setContactToConvert] = useState<Contact | null>(null);
+  
+  // Merge modal states
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeSourceId, setMergeSourceId] = useState<string>("");
+  const [mergeTargetId, setMergeTargetId] = useState<string>("");
+  
+  const navigate = useNavigate();
 
   const handleCreateTask = (contact: Contact) => {
-    setTaskContactId(contact.id);
-    setTaskModalOpen(true);
+    const params = new URLSearchParams({
+      create: '1',
+      module: 'contacts',
+      recordId: contact.id,
+      recordName: encodeURIComponent(contact.contact_name || 'Contact'),
+      return: '/contacts',
+      returnViewId: contact.id,
+    });
+    navigate(`/tasks?${params.toString()}`);
   };
 
   // Fetch all profiles for owner dropdown with caching
@@ -296,10 +317,6 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
       filtered = filtered.filter(contact => contact.contact_owner === ownerFilter);
     }
 
-    // Apply segment filter
-    if (segmentFilter && segmentFilter !== "all") {
-      filtered = filtered.filter(contact => contact.segment === segmentFilter);
-    }
 
     // Apply tag filter
     if (tagFilter) {
@@ -323,7 +340,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
 
     setFilteredContacts(filtered);
     setCurrentPage(1);
-  }, [contacts, debouncedSearchTerm, sourceFilter, ownerFilter, segmentFilter, tagFilter, sortField, sortDirection]);
+  }, [contacts, debouncedSearchTerm, sourceFilter, ownerFilter, tagFilter, sortField, sortDirection]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -400,46 +417,19 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
     }
   };
 
-  const handleConvertToLead = async (contact: Contact) => {
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error('User not authenticated');
+  const handleConvertToLead = (contact: Contact) => {
+    setContactToConvert(contact);
+    setConvertModalOpen(true);
+  };
 
-      const leadData: any = {
-        lead_name: contact.contact_name,
-        created_by: user.id,
-        created_time: new Date().toISOString(),
-        modified_time: new Date().toISOString()
-      };
-
-      if (contact.company_name) leadData.company_name = contact.company_name;
-      if (contact.position) leadData.position = contact.position;
-      if (contact.email) leadData.email = contact.email;
-      if (contact.phone_no) leadData.phone_no = contact.phone_no;
-      if (contact.linkedin) leadData.linkedin = contact.linkedin;
-      if (contact.website) leadData.website = contact.website;
-      if (contact.contact_source) leadData.contact_source = contact.contact_source;
-      if (contact.industry) leadData.industry = contact.industry;
-      if (contact.region) leadData.country = contact.region;
-      if (contact.description) leadData.description = contact.description;
-      if (contact.contact_owner) leadData.contact_owner = contact.contact_owner;
-
-      const { error } = await supabase.from('leads').insert([leadData]).select().single();
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Contact "${contact.contact_name}" has been converted to a lead.`
-      });
-
-      fetchContacts();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to convert contact to lead.",
-        variant: "destructive"
-      });
-    }
+  const handleMergeLeads = (contactId: string, leadId: string) => {
+    // For now, we'll just show a toast - full merge functionality would require more complex handling
+    // since we're merging contact -> lead (different entities)
+    toast({
+      title: "Merge Feature",
+      description: "Contact-to-Lead merge functionality will open the lead for review.",
+    });
+    // Navigate to lead or open lead detail
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -469,7 +459,10 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
     setShowDetailModal(true);
   };
 
-  const visibleColumns = localColumns.filter(col => col.visible);
+  const visibleColumns = moveFieldToEnd(
+    localColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
+    "contact_owner",
+  );
   const totalPages = Math.ceil(filteredContacts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const pageContacts = filteredContacts.slice(startIndex, startIndex + itemsPerPage);
@@ -485,13 +478,12 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
   const { displayNames } = useUserDisplayNames(ownerIds);
 
   // Check if any filters are active
-  const hasActiveFilters = debouncedSearchTerm !== "" || sourceFilter !== "all" || ownerFilter !== "all" || segmentFilter !== "all" || tagFilter !== null;
+  const hasActiveFilters = debouncedSearchTerm !== "" || sourceFilter !== "all" || ownerFilter !== "all" || tagFilter !== null;
 
   const clearAllFilters = () => {
     setSearchTerm("");
     setSourceFilter("all");
     setOwnerFilter("all");
-    setSegmentFilter("all");
     setTagFilter(null);
   };
 
@@ -521,6 +513,10 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
     } else if (columnField === 'created_by') {
       if (!contact.created_by) return '-';
       return displayNames[contact.created_by] || "Loading...";
+    } else if (columnField === 'created_time' || columnField === 'modified_time') {
+      const dateValue = contact[columnField as keyof Contact];
+      if (!dateValue) return '-';
+      return formatDateTimeStandard(dateValue as string);
     }
     return contact[columnField as keyof Contact] || '-';
   };
@@ -573,7 +569,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
             </SelectContent>
           </Select>
 
-          <ContactSegmentFilter value={segmentFilter} onValueChange={setSegmentFilter} />
+          
 
           {tagFilter && (
             <Badge variant="secondary" className="flex items-center gap-1">
@@ -714,22 +710,6 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                           ) : (
                             <span className="text-center text-muted-foreground w-full block">-</span>
                           )
-                        ) : column.field === 'score' ? (
-                          contact.score != null ? (
-                            <span className={`font-medium ${contact.score >= 70 ? 'text-green-600 dark:text-green-400' : contact.score >= 40 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
-                              {contact.score}
-                            </span>
-                          ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
-                          )
-                        ) : column.field === 'segment' ? (
-                          contact.segment ? (
-                            <Badge variant="outline" className="text-xs">
-                              {contact.segment}
-                            </Badge>
-                          ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
-                          )
                         ) : column.field === 'tags' && contact.tags && contact.tags.length > 0 ? (
                           <TooltipProvider>
                             <Tooltip>
@@ -782,7 +762,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                           <span className="text-center w-full block">{contact.email_clicks ?? 0}</span>
                         ) : column.field === 'last_contacted_at' ? (
                           contact.last_contacted_at ? (
-                            <span className="text-sm">{new Date(contact.last_contacted_at).toLocaleDateString()}</span>
+                            <span className="text-sm">{formatDateTimeStandard(contact.last_contacted_at)}</span>
                           ) : (
                             <span className="text-center text-muted-foreground w-full block">-</span>
                           )
@@ -817,14 +797,15 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                               icon: <Pencil className="w-4 h-4" />,
                               onClick: () => handleEditContact(contact)
                             },
-                            ...(contact.email ? [{
+                            {
                               label: "Send Email",
                               icon: <Mail className="w-4 h-4" />,
                               onClick: () => {
                                 setEmailContact(contact);
                                 setEmailModalOpen(true);
-                              }
-                            }] : []),
+                              },
+                              disabled: !contact.email
+                            },
                             {
                               label: "Create Meeting",
                               icon: <CalendarPlus className="w-4 h-4" />,
@@ -984,12 +965,26 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
         }}
       />
 
-      {/* Task Modal */}
-      <TaskModal
-        open={taskModalOpen}
-        onOpenChange={setTaskModalOpen}
-        onSubmit={createTask}
-        context={taskContactId ? { module: 'contacts', recordId: taskContactId, locked: true } : undefined}
+      {/* Convert to Lead Modal */}
+      <ConvertContactToLeadModal
+        open={convertModalOpen}
+        onOpenChange={setConvertModalOpen}
+        contact={contactToConvert}
+        onSuccess={() => {
+          fetchContacts();
+          setContactToConvert(null);
+        }}
+        onMergeLead={handleMergeLeads}
+      />
+
+      {/* Merge Records Modal */}
+      <MergeRecordsModal
+        open={mergeModalOpen}
+        onOpenChange={setMergeModalOpen}
+        entityType="contacts"
+        sourceId={mergeSourceId}
+        targetId={mergeTargetId}
+        onSuccess={fetchContacts}
       />
     </div>
   );

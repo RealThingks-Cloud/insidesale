@@ -797,8 +797,9 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
           meetings: meetingsAllTime.count || 0,
           tasks: tasksAllTime.count || 0,
         },
-        weekStart,
-        weekEnd,
+        // Store as ISO strings to survive cache persistence
+        weekStartStr: weekStart.toISOString(),
+        weekEndStr: weekEnd.toISOString(),
       };
     },
     enabled: !!user?.id
@@ -1607,8 +1608,9 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
         );
 
       case "weeklySummary":
-        const summaryWeekStart = weeklySummary?.weekStart || startOfWeek(new Date(), { weekStartsOn: 1 });
-        const summaryWeekEnd = weeklySummary?.weekEnd || endOfWeek(new Date(), { weekStartsOn: 1 });
+        // Parse dates from ISO strings (cache-safe) or use fresh dates as fallback
+        const summaryWeekStart = weeklySummary?.weekStartStr ? new Date(weeklySummary.weekStartStr) : startOfWeek(new Date(), { weekStartsOn: 1 });
+        const summaryWeekEnd = weeklySummary?.weekEndStr ? new Date(weeklySummary.weekEndStr) : endOfWeek(new Date(), { weekStartsOn: 1 });
         const currentData = weeklySummaryView === 'thisWeek' ? weeklySummary?.thisWeek : weeklySummary?.allTime;
         const lastWeekData = weeklySummary?.lastWeek;
         const allZeros = weeklySummaryView === 'thisWeek' && 

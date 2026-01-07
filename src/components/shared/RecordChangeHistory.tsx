@@ -93,7 +93,8 @@ export const RecordChangeHistory = ({
         .select('id, action, created_at, user_id, details')
         .eq('resource_type', entityType)
         .eq('resource_id', entityId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit initial load for better performance
 
       if (error) throw error;
       setHistory((data as HistoryRecord[]) || []);
