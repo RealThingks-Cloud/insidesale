@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,12 +45,12 @@ const PageAccessGuard = ({ children }: PageAccessGuardProps) => {
           <p className="text-muted-foreground mb-6">
             You don't have permission to access this page. Please contact your administrator if you believe this is an error.
           </p>
-          <a
-            href="/"
+          <Link
+            to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Go to Dashboard
-          </a>
+          </Link>
         </div>
       </div>
     );

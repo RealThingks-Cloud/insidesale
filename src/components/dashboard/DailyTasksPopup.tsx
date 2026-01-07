@@ -12,6 +12,7 @@ import { CheckCircle2, Clock, AlertCircle, X, Calendar, ListTodo } from 'lucide-
 import { toast } from 'sonner';
 import { Task, TaskStatus } from '@/types/task';
 import { getTaskPriorityColor, getTaskStatusColor } from '@/utils/statusBadgeUtils';
+import { useNavigate } from 'react-router-dom';
 
 const POPUP_STORAGE_KEY = 'daily-tasks-popup-last-shown';
 
@@ -22,6 +23,7 @@ interface DailyTasksPopupProps {
 export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   // Check if popup should be shown today
@@ -223,7 +225,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
             size="sm" 
             onClick={() => {
               handleClose();
-              window.location.href = '/tasks';
+              navigate('/tasks');
             }}
           >
             View All Tasks
