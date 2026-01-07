@@ -118,7 +118,7 @@ const Notifications = () => {
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
               <Bell className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
+              <h1 className="text-xl font-semibold text-foreground">Notifications</h1>
               {unreadCount > 0 && (
                 <Badge variant="destructive" className="rounded-full">
                   {unreadCount} unread
@@ -168,7 +168,7 @@ const Notifications = () => {
                   key={notification.id}
                   className={cn(
                     "p-6 hover:bg-muted/50 cursor-pointer transition-colors relative group",
-                    notification.status === 'unread' && "bg-blue-50/50 border-l-4 border-l-blue-500"
+                    notification.status === 'unread' && "bg-primary/5 border-l-4 border-l-primary"
                   )}
                   onClick={() => handleNotificationClick(notification)}
                 >
@@ -190,7 +190,7 @@ const Notifications = () => {
                               {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                             </p>
                             {notification.status === 'unread' && (
-                              <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">
                                 New
                               </Badge>
                             )}
