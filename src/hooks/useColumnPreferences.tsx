@@ -10,7 +10,7 @@ export interface ColumnConfig {
   order: number;
 }
 
-type ModuleName = 'accounts' | 'leads' | 'contacts' | 'deals';
+type ModuleName = 'accounts' | 'leads' | 'contacts' | 'deals' | 'meetings';
 
 interface UseColumnPreferencesOptions {
   moduleName: ModuleName;

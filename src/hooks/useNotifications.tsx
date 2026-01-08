@@ -200,11 +200,23 @@ export const useNotifications = () => {
           // Invalidate query to refetch
           queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
 
-          // Show toast notification for new action item notifications
+          // Show toast notification for relevant notification types
           const newNotification = payload.new as Notification;
-          if (newNotification.notification_type === 'action_item') {
+          const toastableTypes = [
+            'action_item', 'task_assigned', 'task_completed', 'task_updated', 'task_deleted'
+          ];
+          
+          if (toastableTypes.includes(newNotification.notification_type)) {
+            const titles: Record<string, string> = {
+              'action_item': 'New Action Item',
+              'task_assigned': 'Task Assigned',
+              'task_completed': 'Task Completed',
+              'task_updated': 'Task Updated',
+              'task_deleted': 'Task Deleted',
+            };
+            
             toast({
-              title: "New Action Item Notification",
+              title: titles[newNotification.notification_type] || 'New Notification',
               description: newNotification.message,
               duration: 5000,
             });

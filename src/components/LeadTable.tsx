@@ -31,6 +31,7 @@ import { TableSkeleton } from "./shared/Skeletons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { moveFieldToEnd } from "@/utils/columnOrderUtils";
 import { formatDateTimeStandard } from "@/utils/formatUtils";
+import { getLeadStatusColor } from "@/utils/statusBadgeUtils";
 
 // Export ref interface for parent component
 export interface LeadTableRef {
@@ -61,47 +62,7 @@ interface Lead {
   industry?: string | null;
 }
 
-const defaultColumns: LeadColumnConfig[] = [{
-  field: 'lead_name',
-  label: 'Lead Name',
-  visible: true,
-  order: 0
-}, {
-  field: 'account_company_name',
-  label: 'Company Name',
-  visible: true,
-  order: 1
-}, {
-  field: 'position',
-  label: 'Position',
-  visible: true,
-  order: 2
-}, {
-  field: 'email',
-  label: 'Email',
-  visible: true,
-  order: 3
-}, {
-  field: 'phone_no',
-  label: 'Phone',
-  visible: true,
-  order: 4
-}, {
-  field: 'lead_status',
-  label: 'Lead Status',
-  visible: true,
-  order: 5
-}, {
-  field: 'contact_source',
-  label: 'Source',
-  visible: true,
-  order: 6
-}, {
-  field: 'contact_owner',
-  label: 'Lead Owner',
-  visible: true,
-  order: 7
-}];
+// Use defaultLeadColumns from LeadColumnCustomizer (imported above)
 
 interface LeadTableProps {
   showColumnCustomizer: boolean;
@@ -497,10 +458,11 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
 
   const { displayNames } = useUserDisplayNames(ownerIds);
   
-  const visibleColumns = moveFieldToEnd(
+  // Memoize visible columns to prevent position changes on re-render
+  const visibleColumns = useMemo(() => moveFieldToEnd(
     localColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
     "contact_owner",
-  );
+  ), [localColumns]);
   const pageLeads = getCurrentPageLeads();
 
   // Check if any filters are active
@@ -554,33 +516,14 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
       .join('');
   };
 
-  // Generate consistent color from name
+  // Generate consistent vibrant color from name (matching Accounts pattern)
   const getAvatarColor = (name: string) => {
     const colors = [
-      'bg-slate-500', 'bg-slate-600', 'bg-zinc-500', 'bg-gray-500',
-      'bg-stone-500', 'bg-neutral-500', 'bg-slate-700', 'bg-zinc-600'
+      'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 
+      'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'
     ];
     const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     return colors[index];
-  };
-
-  const getStatusBadgeClasses = (status?: string) => {
-    switch (status) {
-      case 'New':
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      case 'Attempted':
-        return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      case 'Follow-up':
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800/30 dark:text-slate-300 border-slate-200 dark:border-slate-700';
-      case 'Qualified':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'Disqualified':
-        return 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border-rose-200 dark:border-rose-800';
-      case 'Converted':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
   };
 
   return (
@@ -635,10 +578,10 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
           {loading ? (
             <TableSkeleton columns={visibleColumns.length + 2} rows={10} />
           ) : (
-            <Table>
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
-                  <TableHead className="w-12 text-center font-bold text-foreground">
+                  <TableHead className="w-[50px] text-center font-bold text-foreground">
                     <div className="flex justify-center">
                       <Checkbox 
                         checked={selectedLeads.length > 0 && selectedLeads.length === Math.min(pageLeads.length, 50)} 
@@ -646,21 +589,39 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                       />
                     </div>
                   </TableHead>
-                  {visibleColumns.map(column => (
-                    <TableHead 
-                      key={column.field} 
-                      className="text-left font-bold text-foreground px-4 py-3 whitespace-nowrap min-w-[80px]"
-                    >
-                      <div 
-                        className="group flex items-center gap-2 cursor-pointer hover:text-primary" 
-                        onClick={() => handleSort(column.field)}
+                  {visibleColumns.map(column => {
+                    // Define fixed widths for each column type
+                    const getColumnWidth = (field: string) => {
+                      switch (field) {
+                        case 'lead_name': return 'w-[150px]';
+                        case 'account_company_name': return 'w-[140px]';
+                        case 'position': return 'w-[130px]';
+                        case 'email': return 'w-[180px]';
+                        case 'phone_no': return 'w-[120px]';
+                        case 'lead_status': return 'w-[100px]';
+                        case 'contact_source': return 'w-[100px]';
+                        case 'linkedin': return 'w-[100px]';
+                        case 'created_time': return 'w-[150px]';
+                        case 'contact_owner': return 'w-[150px]';
+                        default: return 'w-[120px]';
+                      }
+                    };
+                    return (
+                      <TableHead 
+                        key={column.field} 
+                        className={`${getColumnWidth(column.field)} text-left font-bold text-foreground px-4 py-3 whitespace-nowrap`}
                       >
-                        {column.label}
-                        {getSortIcon(column.field)}
-                      </div>
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-center font-bold text-foreground w-48 px-4 py-3">
+                        <div 
+                          className="group flex items-center gap-2 cursor-pointer hover:text-primary" 
+                          onClick={() => handleSort(column.field)}
+                        >
+                          {column.label}
+                          {getSortIcon(column.field)}
+                        </div>
+                      </TableHead>
+                    );
+                  })}
+                  <TableHead className="w-[100px] text-center font-bold text-foreground px-4 py-3">
                     Actions
                   </TableHead>
                 </TableRow>
@@ -708,7 +669,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                       {visibleColumns.map(column => (
                         <TableCell 
                           key={column.field} 
-                          className="text-left px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]"
+                          className="text-left px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis"
                         >
                           {column.field === 'lead_name' ? (
                             <button 
@@ -740,7 +701,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                             )
                           ) : column.field === 'lead_status' ? (
                             lead.lead_status ? (
-                              <Badge variant="outline" className={getStatusBadgeClasses(lead.lead_status)}>
+                              <Badge variant="outline" className={getLeadStatusColor(lead.lead_status)}>
                                 {lead.lead_status}
                               </Badge>
                             ) : (

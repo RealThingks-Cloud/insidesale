@@ -52,13 +52,15 @@ export const getTaskPriorityColor = (priority?: string | null): string => {
 };
 
 // Meeting Status Utilities
-export const MEETING_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
+export const MEETING_STATUSES = ['scheduled', 'ongoing', 'completed', 'cancelled', 'no_show'] as const;
 export type MeetingStatusType = typeof MEETING_STATUSES[number];
 
 export const getMeetingStatusColor = (status?: string | null): string => {
   switch (status?.toLowerCase()) {
     case 'scheduled':
       return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+    case 'ongoing':
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     case 'completed':
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
     case 'cancelled':

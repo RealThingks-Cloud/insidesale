@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { useMeetingsImportExport } from "@/hooks/useMeetingsImportExport";
+import { useColumnPreferences } from "@/hooks/useColumnPreferences";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { TablePagination } from "@/components/shared/TablePagination";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { getMeetingStatus } from "@/utils/meetingStatus";
+import { getMeetingStatusColor } from "@/utils/statusBadgeUtils";
 import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
 
 type SortColumn = 'subject' | 'date' | 'time' | 'lead_contact' | 'status' | null;
@@ -81,9 +83,17 @@ const Meetings = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Column customizer state
+  // Column customizer state with persistence
   const [showColumnCustomizer, setShowColumnCustomizer] = useState(false);
-  const [columns, setColumns] = useState<MeetingColumnConfig[]>(defaultMeetingColumns);
+  const { columns, saveColumns, isSaving } = useColumnPreferences({
+    moduleName: 'meetings',
+    defaultColumns: defaultMeetingColumns,
+  });
+  const [localColumns, setLocalColumns] = useState<MeetingColumnConfig[]>(columns);
+
+  useEffect(() => {
+    setLocalColumns(columns);
+  }, [columns]);
 
   const handleCreateTask = (meeting: Meeting) => {
     const params = new URLSearchParams({
@@ -195,10 +205,7 @@ const Meetings = () => {
   };
 
   const getSortIcon = (column: SortColumn) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />;
-    }
-    return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />;
+    return null; // Hide sort icons but keep sorting on click
   };
 
   const sortedAndFilteredMeetings = useMemo(() => {
@@ -328,28 +335,16 @@ const Meetings = () => {
     return subject.split(' ').slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
   };
 
-  // Generate consistent color from subject
+// Generate consistent vibrant color from subject
   const getAvatarColor = (name: string) => {
-    const colors = ['bg-slate-500', 'bg-slate-600', 'bg-zinc-500', 'bg-gray-500', 'bg-stone-500', 'bg-neutral-500', 'bg-slate-700', 'bg-zinc-600'];
+    const colors = ['bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 
+      'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'];
     const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     return colors[index];
   };
 
-  // Status badge styling matching Accounts module pattern
-  const getStatusBadgeClasses = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      case 'ongoing':
-        return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      case 'completed':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-200 dark:border-gray-700';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
+  // Use shared status badge styling from utilities
+  const getStatusBadgeClasses = (status: string) => getMeetingStatusColor(status);
 
   const getStatusBadge = (meeting: Meeting) => {
     const status = getEffectiveStatus(meeting);
@@ -371,22 +366,22 @@ const Meetings = () => {
       successful: {
         label: "Successful",
         icon: <CheckCircle2 className="h-3 w-3" />,
-        className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+        className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
       },
       follow_up_needed: {
         label: "Follow-up",
         icon: <AlertCircle className="h-3 w-3" />,
-        className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+        className: "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-800"
       },
       no_show: {
         label: "No-show",
         icon: <UserX className="h-3 w-3" />,
-        className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+        className: "bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border-rose-200 dark:border-rose-800"
       },
       rescheduled: {
         label: "Rescheduled",
         icon: <CalendarClock className="h-3 w-3" />,
-        className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+        className: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-800"
       }
     };
     const config = outcomeConfig[outcome];
@@ -398,7 +393,7 @@ const Meetings = () => {
   };
 
   const isColumnVisible = (field: string) => {
-    const col = columns.find(c => c.field === field);
+    const col = localColumns.find(c => c.field === field);
     return col ? col.visible : true;
   };
 
@@ -806,8 +801,10 @@ const Meetings = () => {
       <MeetingColumnCustomizer
         open={showColumnCustomizer}
         onOpenChange={setShowColumnCustomizer}
-        columns={columns}
-        onColumnsChange={setColumns}
+        columns={localColumns}
+        onColumnsChange={setLocalColumns}
+        onSave={saveColumns}
+        isSaving={isSaving}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

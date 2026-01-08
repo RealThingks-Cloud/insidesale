@@ -97,7 +97,11 @@ export const TaskListView = ({
 }: TaskListViewProps) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
+  // Default to hiding completed tasks unless explicitly set
+  const [statusFilter, setStatusFilter] = useState<string>(
+    initialStatusFilter === 'all' ? 'open,in_progress,cancelled' : initialStatusFilter
+  );
+  const [hideCompleted, setHideCompleted] = useState(initialStatusFilter === 'all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [assignedToFilter, setAssignedToFilter] = useState<string>(initialOwnerFilter);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -132,12 +136,24 @@ export const TaskListView = ({
     return tasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+      
+      // Handle multiple statuses (comma-separated) or single status
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        const allowedStatuses = statusFilter.split(',');
+        matchesStatus = allowedStatuses.includes(task.status);
+      }
+      
+      // Also check hideCompleted toggle
+      if (hideCompleted && task.status === 'completed') {
+        matchesStatus = false;
+      }
+      
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
       const matchesAssignedTo = assignedToFilter === 'all' || task.assigned_to === assignedToFilter;
       return matchesSearch && matchesStatus && matchesPriority && matchesAssignedTo;
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter, assignedToFilter]);
+  }, [tasks, searchTerm, statusFilter, hideCompleted, priorityFilter, assignedToFilter]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -149,12 +165,16 @@ export const TaskListView = ({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTasks = filteredTasks.slice(startIndex, startIndex + itemsPerPage);
 
-  // Check if any filters are active
-  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || priorityFilter !== 'all' || assignedToFilter !== 'all';
+  // Check if any filters are active (active tasks filter is the new default)
+  const hasActiveFilters = searchTerm !== '' || 
+    (statusFilter !== 'open,in_progress,cancelled' && statusFilter !== 'all') || 
+    priorityFilter !== 'all' || 
+    assignedToFilter !== 'all';
 
   const clearAllFilters = () => {
     setSearchTerm('');
-    setStatusFilter('all');
+    setStatusFilter('open,in_progress,cancelled');
+    setHideCompleted(true);
     setPriorityFilter('all');
     setAssignedToFilter('all');
   };
@@ -236,12 +256,27 @@ export const TaskListView = ({
             />
           </div>
           
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
+          <Select 
+            value={statusFilter === 'open,in_progress,cancelled' ? 'active' : statusFilter} 
+            onValueChange={(val) => {
+              if (val === 'active') {
+                setStatusFilter('open,in_progress,cancelled');
+                setHideCompleted(true);
+              } else if (val === 'all') {
+                setStatusFilter('all');
+                setHideCompleted(false);
+              } else {
+                setStatusFilter(val);
+                setHideCompleted(false);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active Tasks</SelectItem>
+              <SelectItem value="all">All Tasks</SelectItem>
               <SelectItem value="open">Open</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
@@ -382,7 +417,11 @@ export const TaskListView = ({
                     <TableRow 
                       key={task.id} 
                       className={`hover:bg-muted/20 border-b group ${
-                        dueDateInfo.isOverdue ? 'bg-red-50 dark:bg-red-900/10' : ''
+                        task.status === 'completed' 
+                          ? 'bg-emerald-50/50 dark:bg-emerald-900/10' 
+                          : dueDateInfo.isOverdue 
+                            ? 'bg-red-50 dark:bg-red-900/10' 
+                            : ''
                       }`}
                     >
                       {visibleColumns.includes('checkbox') && (
@@ -405,7 +444,7 @@ export const TaskListView = ({
                           <button
                             onClick={() => setViewingTask(task)}
                             className={`text-primary hover:underline font-medium text-left truncate ${
-                              task.status === 'completed' ? 'line-through text-muted-foreground' : ''
+                              task.status === 'completed' ? 'text-muted-foreground' : ''
                             }`}
                           >
                             <HighlightedText text={task.title} highlight={searchTerm} />

@@ -26,6 +26,7 @@ import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { HighlightedText } from "./shared/HighlightedText";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { moveFieldToEnd } from "@/utils/columnOrderUtils";
+import { getDealStageColor } from "@/utils/statusBadgeUtils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -163,27 +164,8 @@ export const ListView = ({
     return formatDateTimeStandard(date) || '-';
   };
 
-  // Stage badge styling (matching Accounts module)
-  const getStageBadgeClasses = (stage?: string) => {
-    switch (stage) {
-      case 'Won':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-200';
-      case 'Dropped':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-200';
-      case 'Lead':
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800/30 dark:text-slate-300 border-slate-200';
-      case 'Qualified':
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200';
-      case 'Discussions':
-        return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200';
-      case 'Offered':
-        return 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 border-purple-200';
-      case 'RFQ':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border-indigo-200';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
+  // Use shared stage badge styling from utilities
+  const getStageBadgeClasses = (stage?: string) => getDealStageColor(stage);
 
   // Generate initials from project name
   const getProjectInitials = (name: string) => {
@@ -458,32 +440,33 @@ export const ListView = ({
              matchesPriorities && matchesProbabilities && matchesHandoffStatuses && matchesProbabilityRange;
     })
     .sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
+      const aValue = a[sortBy as keyof Deal];
+      const bValue = b[sortBy as keyof Deal];
 
-      // Get the values for the sort field
-      if (['priority', 'probability', 'project_duration'].includes(sortBy)) {
-        aValue = a[sortBy as keyof Deal] || 0;
-        bValue = b[sortBy as keyof Deal] || 0;
-      } else if (['total_contract_value', 'total_revenue'].includes(sortBy)) {
-        aValue = a[sortBy as keyof Deal] || 0;
-        bValue = b[sortBy as keyof Deal] || 0;
-      } else if (['expected_closing_date', 'start_date', 'end_date', 'created_at', 'modified_at', 'proposal_due_date'].includes(sortBy)) {
-        const aDateValue = a[sortBy as keyof Deal];
-        const bDateValue = b[sortBy as keyof Deal];
-        aValue = new Date(typeof aDateValue === 'string' ? aDateValue : 0);
-        bValue = new Date(typeof bDateValue === 'string' ? bDateValue : 0);
-      } else {
-        // String fields
-        aValue = String(a[sortBy as keyof Deal] || '').toLowerCase();
-        bValue = String(b[sortBy as keyof Deal] || '').toLowerCase();
+      // Handle null/undefined - push to end
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return sortOrder === 'asc' ? 1 : -1;
+      if (bValue == null) return sortOrder === 'asc' ? -1 : 1;
+
+      // Numeric fields
+      if (['priority', 'probability', 'project_duration', 'total_contract_value', 'total_revenue', 'quarterly_revenue_q1', 'quarterly_revenue_q2', 'quarterly_revenue_q3', 'quarterly_revenue_q4'].includes(sortBy)) {
+        const numA = Number(aValue) || 0;
+        const numB = Number(bValue) || 0;
+        return sortOrder === 'asc' ? numA - numB : numB - numA;
       }
 
-      if (sortOrder === "asc") {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      // Date fields
+      if (['expected_closing_date', 'start_date', 'end_date', 'created_at', 'modified_at', 'proposal_due_date', 'rfq_received_date', 'signed_contract_date', 'implementation_start_date'].includes(sortBy)) {
+        const dateA = new Date(String(aValue)).getTime();
+        const dateB = new Date(String(bValue)).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
       }
+
+      // String fields - use localeCompare for proper sorting
+      const strA = String(aValue);
+      const strB = String(bValue);
+      const comparison = strA.localeCompare(strB, undefined, { sensitivity: 'base' });
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
 
   // Pagination
@@ -570,9 +553,9 @@ export const ListView = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Lead Owners</SelectItem>
-              {availableOptions.leadOwners.map((owner) => (
-                <SelectItem key={owner} value={owner}>
-                  {owner}
+              {availableOptions.leadOwners.map((ownerId) => (
+                <SelectItem key={ownerId} value={ownerId}>
+                  {displayNames[ownerId] || ownerId}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -635,8 +618,11 @@ export const ListView = ({
                     }
                   }}
                 >
-                  <div className="flex items-center justify-center gap-2 pr-4 text-foreground font-bold">
+                  <div className="flex items-center justify-center gap-1 pr-4 text-foreground font-bold">
                     {column.label}
+                    {sortBy === column.field && (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                    )}
                   </div>
                   <div
                     className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary/40 bg-transparent"
@@ -683,7 +669,7 @@ export const ListView = ({
                   {visibleColumns.map(column => (
                     <TableCell 
                       key={column.field} 
-                      className="text-left px-2 py-1 align-middle whitespace-nowrap overflow-visible"
+                      className="text-center px-2 py-1 align-middle whitespace-nowrap overflow-hidden"
                       style={{ 
                         width: `${columnWidths[column.field] || 120}px`,
                         minWidth: `${columnWidths[column.field] || 120}px`,

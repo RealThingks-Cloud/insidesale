@@ -11,6 +11,7 @@ import { validateRequiredFields, getFieldErrors, validateDateLogic, validateReve
 import { DealStageForm } from "./deal-form/DealStageForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
+import { Plus } from "lucide-react";
 
 interface DealFormProps {
   deal: Deal | null;
@@ -312,10 +313,19 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
     navigate(`/tasks?${params.toString()}`);
   };
 
+  // Helper to get currency symbol
+  const getCurrencySymbol = (currency?: string) => {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'INR': return '₹';
+      default: return '€';
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" disableOutsidePointerEvents={false}>
-        <DialogHeader>
+    <Dialog open={isOpen} onOpenChange={onClose} modal={true}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-2xl font-bold">
@@ -343,9 +353,9 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
           </div>
         </DialogHeader>
 
-        {/* Deal Summary Section - Only show for existing deals */}
+        {/* Deal Summary Section - Only show for existing deals - Fixed */}
         {!isCreating && formData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg mb-4">
+          <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg mb-4">
             <div>
               <p className="text-xs text-muted-foreground">Customer</p>
               <p className="font-medium truncate">{formData.customer_name || '-'}</p>
@@ -354,7 +364,7 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
               <p className="text-xs text-muted-foreground">Contract Value</p>
               <p className="font-medium text-primary">
                 {formData.total_contract_value 
-                  ? `€${formData.total_contract_value.toLocaleString()}`
+                  ? `${getCurrencySymbol(formData.currency_type)}${formData.total_contract_value.toLocaleString()}`
                   : '-'}
               </p>
             </div>
@@ -373,18 +383,21 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <DealStageForm
-            formData={formData}
-            onFieldChange={handleFieldChange}
-            onLeadSelect={handleLeadSelect}
-            fieldErrors={fieldErrors}
-            stage={currentStage}
-            showPreviousStages={showPreviousStages}
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Scrollable stages section */}
+          <div className="flex-1 overflow-y-auto pr-2">
+            <DealStageForm
+              formData={formData}
+              onFieldChange={handleFieldChange}
+              onLeadSelect={handleLeadSelect}
+              fieldErrors={fieldErrors}
+              stage={currentStage}
+              showPreviousStages={showPreviousStages}
+            />
+          </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-between items-center">
+          {/* Action Buttons - Fixed at bottom */}
+          <div className="flex-shrink-0 flex justify-between items-center pt-4 border-t mt-4">
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
@@ -394,18 +407,18 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
               </Button>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               {/* Move to Stage Dropdown - Allow movement to any stage */}
               {!isCreating && getAvailableStagesForMoveTo().length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Move to:</span>
+                  <span className="text-sm text-muted-foreground">Move to:</span>
                   <Select
                     value=""
                     onValueChange={(value) => {
                       handleMoveToSpecificStage(value as DealStage);
                     }}
                   >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[140px]">
                       <SelectValue placeholder="Select stage..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -421,11 +434,11 @@ export const DealForm = ({ deal, isOpen, onClose, onSave, isCreating = false, in
               {!isCreating && (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   onClick={handleActionButtonClick}
                 >
-                  Action
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Task
                 </Button>
               )}
             </div>

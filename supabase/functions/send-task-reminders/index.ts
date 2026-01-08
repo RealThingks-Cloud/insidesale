@@ -6,6 +6,87 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Azure Graph API email functions (same as send-email)
+async function getAccessToken(): Promise<string> {
+  const tenantId = Deno.env.get("AZURE_EMAIL_TENANT_ID");
+  const clientId = Deno.env.get("AZURE_EMAIL_CLIENT_ID");
+  const clientSecret = Deno.env.get("AZURE_EMAIL_CLIENT_SECRET");
+
+  if (!tenantId || !clientId || !clientSecret) {
+    throw new Error("Azure email credentials not configured");
+  }
+
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: "https://graph.microsoft.com/.default",
+    grant_type: "client_credentials",
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Azure token error:", errorText);
+    throw new Error(`Failed to get Azure access token: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
+async function sendEmailViaGraph(
+  accessToken: string,
+  to: string,
+  toName: string,
+  subject: string,
+  body: string,
+  from: string
+): Promise<void> {
+  const graphUrl = `https://graph.microsoft.com/v1.0/users/${from}/sendMail`;
+
+  const emailPayload = {
+    message: {
+      subject,
+      body: {
+        contentType: "HTML",
+        content: body,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: to,
+            name: toName || to,
+          },
+        },
+      ],
+    },
+    saveToSentItems: true,
+  };
+
+  const response = await fetch(graphUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(emailPayload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Graph API error:", errorText);
+    throw new Error(`Failed to send email via Graph API: ${response.status}`);
+  }
+
+  console.log(`Email sent successfully to ${to}`);
+}
+
 interface Task {
   id: string;
   title: string;
@@ -25,12 +106,6 @@ interface UserTasks {
   tasks: Task[];
   overdueTasks: Task[];
 }
-
-const priorityEmoji: Record<string, string> = {
-  high: "🔴",
-  medium: "🟡",
-  low: "🟢",
-};
 
 const formatTime = (time: string | null): string => {
   if (!time || time === "00:00:00") return "";
@@ -151,6 +226,48 @@ const generateEmailHtml = (userTasks: UserTasks, appUrl: string): string => {
   `;
 };
 
+/**
+ * Get the current hour in a specific timezone
+ */
+const getCurrentHourInTimezone = (timezone: string): number => {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      hour12: false,
+    });
+    const hour = parseInt(formatter.format(new Date()));
+    return hour;
+  } catch (err) {
+    console.error(`Invalid timezone ${timezone}, defaulting to Asia/Kolkata:`, err);
+    // Fallback to Asia/Kolkata
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour: "numeric",
+      hour12: false,
+    });
+    return parseInt(formatter.format(new Date()));
+  }
+};
+
+/**
+ * Get today's date in YYYY-MM-DD format for a specific timezone
+ */
+const getTodayInTimezone = (timezone: string): string => {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+    });
+    return formatter.format(new Date()); // Returns YYYY-MM-DD format
+  } catch (err) {
+    console.error(`Invalid timezone ${timezone}, defaulting to Asia/Kolkata:`, err);
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+    return formatter.format(new Date());
+  }
+};
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -158,21 +275,30 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    console.log("Starting send-task-reminders function...");
+    // Check for force parameter to bypass time check
+    let forceRun = false;
+    try {
+      const body = await req.json();
+      forceRun = body?.force === true;
+    } catch {
+      // No body or invalid JSON, default to false
+    }
+
+    console.log(`Starting send-task-reminders function... (force: ${forceRun})`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split("T")[0];
-    console.log(`Fetching tasks for date: ${today}`);
+    // Get today's date in UTC for initial task query
+    const utcToday = new Date().toISOString().split("T")[0];
+    console.log(`UTC date: ${utcToday}`);
 
-    // Fetch all incomplete tasks due today
+    // Fetch all incomplete tasks due today (UTC) or overdue
     const { data: todayTasks, error: todayError } = await supabase
       .from("tasks")
       .select("*")
-      .eq("due_date", today)
+      .eq("due_date", utcToday)
       .in("status", ["open", "in_progress"]);
 
     if (todayError) {
@@ -184,7 +310,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: overdueTasks, error: overdueError } = await supabase
       .from("tasks")
       .select("*")
-      .lt("due_date", today)
+      .lt("due_date", utcToday)
       .in("status", ["open", "in_progress"]);
 
     if (overdueError) {
@@ -206,10 +332,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Fetch user profiles and notification preferences
+    // Fetch user profiles including timezone
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select('id, full_name, "Email ID"')
+      .select('id, full_name, "Email ID", timezone')
       .in("id", userIds);
 
     if (profilesError) {
@@ -227,8 +353,11 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error fetching notification preferences:", prefsError);
     }
 
-    // Group tasks by user
-    const userTasksMap = new Map<string, UserTasks>();
+    // Use production app URL
+    const appUrl = "https://crm.realthingks.com";
+    
+    // Send emails with timezone awareness and duplicate prevention
+    const emailResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
 
     for (const userId of userIds) {
       const profile = profiles?.find(p => p.id === userId);
@@ -237,62 +366,107 @@ const handler = async (req: Request): Promise<Response> => {
       // Skip if user has disabled task reminders or email notifications
       if (prefs && (prefs.task_reminders === false || prefs.email_notifications === false)) {
         console.log(`Skipping user ${userId} - notifications disabled`);
+        emailResults.push({ userId, success: false, skipped: "notifications_disabled" });
         continue;
       }
 
       const email = profile?.["Email ID"];
       if (!email) {
         console.log(`Skipping user ${userId} - no email found`);
+        emailResults.push({ userId, success: false, skipped: "no_email" });
         continue;
       }
 
+      // Get user's timezone (default to Asia/Kolkata)
+      const userTimezone = profile?.timezone || "Asia/Kolkata";
+      
+      // Check if it's 9 AM in user's timezone (9:00-9:59) - skip if force is true
+      if (!forceRun) {
+        const userHour = getCurrentHourInTimezone(userTimezone);
+        if (userHour !== 9) {
+          console.log(`Skipping user ${userId} - not 9 AM in ${userTimezone} (current hour: ${userHour})`);
+          emailResults.push({ userId, success: false, skipped: `not_9am_hour_${userHour}` });
+          continue;
+        }
+      }
+
+      // Get today's date in user's timezone for duplicate check
+      const userTodayDate = getTodayInTimezone(userTimezone);
+
+      // Check if already sent today (skip check if force is true)
+      if (!forceRun) {
+        const { data: existingLog, error: logError } = await supabase
+          .from("task_reminder_logs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("sent_date", userTodayDate)
+          .maybeSingle();
+
+        if (logError) {
+          console.error(`Error checking reminder log for ${userId}:`, logError);
+        }
+
+        if (existingLog) {
+          console.log(`Skipping user ${userId} - already sent today (${userTodayDate})`);
+          emailResults.push({ userId, success: false, skipped: "already_sent_today" });
+          continue;
+        }
+      }
+
+      // Get user's tasks
       const userTodayTasks = (todayTasks || []).filter(t => t.assigned_to === userId);
       const userOverdueTasks = (overdueTasks || []).filter(t => t.assigned_to === userId);
 
       // Skip if user has no tasks
       if (userTodayTasks.length === 0 && userOverdueTasks.length === 0) {
+        console.log(`Skipping user ${userId} - no tasks`);
+        emailResults.push({ userId, success: false, skipped: "no_tasks" });
         continue;
       }
 
-      userTasksMap.set(userId, {
+      const userTasksData: UserTasks = {
         userId,
         email,
         fullName: profile?.full_name || "",
         tasks: userTodayTasks,
         overdueTasks: userOverdueTasks,
-      });
-    }
+      };
 
-    console.log(`Preparing to send emails to ${userTasksMap.size} users`);
-
-    // Get app URL from request or environment
-    const appUrl = Deno.env.get("APP_URL") || "https://your-app.lovable.dev";
-    
-    // Send emails via the send-email function
-    const emailResults: { userId: string; success: boolean; error?: string }[] = [];
-
-    for (const [userId, userTasks] of userTasksMap) {
       try {
-        const emailHtml = generateEmailHtml(userTasks, appUrl);
-        const taskCount = userTasks.tasks.length + userTasks.overdueTasks.length;
+        const emailHtml = generateEmailHtml(userTasksData, appUrl);
+        const taskCount = userTodayTasks.length + userOverdueTasks.length;
         
-        // Call the existing send-email edge function
-        const { error: emailError } = await supabase.functions.invoke("send-email", {
-          body: {
-            to: userTasks.email,
-            subject: `📋 You have ${taskCount} task${taskCount !== 1 ? "s" : ""} to complete today`,
-            html: emailHtml,
-            recipientName: userTasks.fullName,
-          },
-        });
+        // For daily task reminders, use the recipient's own email as the sender
+        // This makes the email appear as a self-reminder
+        const senderEmail = email;
+        
+        // Send email directly via Azure Graph API
+        const accessToken = await getAccessToken();
+        await sendEmailViaGraph(
+          accessToken,
+          email,
+          userTasksData.fullName,
+          `📋 You have ${taskCount} task${taskCount !== 1 ? "s" : ""} to complete today`,
+          emailHtml,
+          senderEmail
+        );
+        
+        // Log the successful send to prevent duplicates
+        const { error: insertError } = await supabase
+          .from("task_reminder_logs")
+          .insert({
+            user_id: userId,
+            sent_date: userTodayDate,
+            tasks_count: userTodayTasks.length,
+            overdue_count: userOverdueTasks.length,
+            email_sent_to: email,
+          });
 
-        if (emailError) {
-          console.error(`Failed to send email to ${userTasks.email}:`, emailError);
-          emailResults.push({ userId, success: false, error: emailError.message });
-        } else {
-          console.log(`Email sent successfully to ${userTasks.email}`);
-          emailResults.push({ userId, success: true });
+        if (insertError) {
+          console.error(`Failed to log reminder send for ${userId}:`, insertError);
         }
+
+        emailResults.push({ userId, success: true });
       } catch (err) {
         console.error(`Exception sending email to user ${userId}:`, err);
         emailResults.push({ userId, success: false, error: String(err) });
@@ -300,9 +474,10 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const successCount = emailResults.filter(r => r.success).length;
-    const failCount = emailResults.filter(r => !r.success).length;
+    const failCount = emailResults.filter(r => !r.success && !r.skipped).length;
+    const skippedCount = emailResults.filter(r => r.skipped).length;
 
-    console.log(`Email sending complete: ${successCount} succeeded, ${failCount} failed`);
+    console.log(`Email sending complete: ${successCount} sent, ${failCount} failed, ${skippedCount} skipped`);
 
     return new Response(
       JSON.stringify({
@@ -310,6 +485,7 @@ const handler = async (req: Request): Promise<Response> => {
         message: `Sent ${successCount} reminder emails`,
         emailsSent: successCount,
         emailsFailed: failCount,
+        emailsSkipped: skippedCount,
         results: emailResults,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

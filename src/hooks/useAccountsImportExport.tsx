@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { UserNameUtils } from '@/utils/userNameUtils';
 
 const validStatuses = ['New', 'Working', 'Warm', 'Hot', 'Nurture', 'Closed-Won', 'Closed-Lost'];
 const validTags = [
@@ -35,41 +36,6 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
     return result;
   };
 
-  const fetchUserDisplayNames = async (userIds: string[]): Promise<Record<string, string>> => {
-    const uniqueIds = [...new Set(userIds.filter(id => id))];
-    if (uniqueIds.length === 0) return {};
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', uniqueIds);
-
-    const nameMap: Record<string, string> = {};
-    profiles?.forEach(profile => {
-      nameMap[profile.id] = profile.full_name || 'Unknown User';
-    });
-
-    return nameMap;
-  };
-
-  const fetchUserIdsByNames = async (names: string[]): Promise<Record<string, string>> => {
-    const uniqueNames = [...new Set(names.filter(name => name && name.trim()))];
-    if (uniqueNames.length === 0) return {};
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name');
-
-    const idMap: Record<string, string> = {};
-    profiles?.forEach(profile => {
-      if (profile.full_name) {
-        idMap[profile.full_name.toLowerCase()] = profile.id;
-      }
-    });
-
-    return idMap;
-  };
-
   const handleImport = async (file: File) => {
     setIsImporting(true);
 
@@ -100,7 +66,7 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
       }
 
       // Fetch user IDs by names
-      const userIdMap = await fetchUserIdsByNames(userNames);
+      const userIdMap = await UserNameUtils.fetchUserIdsByNames(userNames);
       
       const records: any[] = [];
       const errors: string[] = [];
@@ -139,15 +105,6 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
         // Check if record has a valid UUID for update (ignore non-UUID id values)
         const existingId = record.id && uuidRegex.test(record.id) ? record.id : null;
 
-        // Helper to resolve user ID from name or UUID
-        const resolveUserId = (value: string | null, defaultId: string): string => {
-          if (!value) return defaultId;
-          // Check if it's already a UUID
-          if (uuidRegex.test(value)) return value;
-          // Otherwise, look up by name
-          return userIdMap[value.toLowerCase()] || defaultId;
-        };
-
         records.push({
           id: existingId,
           company_name: companyName,
@@ -161,8 +118,8 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
           notes: record.notes || null,
           industry: record.industry || null,
           phone: record.phone || null,
-          created_by: resolveUserId(record.created_by, user.id),
-          account_owner: resolveUserId(record.account_owner, user.id),
+          created_by: UserNameUtils.resolveUserId(record.created_by, userIdMap, user.id),
+          account_owner: UserNameUtils.resolveUserId(record.account_owner, userIdMap, user.id),
           modified_by: user.id,
         });
       }
@@ -262,46 +219,36 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
         if (account.modified_by) userIds.push(account.modified_by);
       });
 
-      const userNameMap = await fetchUserDisplayNames(userIds);
+      const userNameMap = await UserNameUtils.fetchUserDisplayNames(userIds);
 
       const headers = [
-        'id', 'company_name', 'email', 'company_type', 'industry', 'tags', 'country', 
-        'status', 'website', 'region', 'notes', 'phone',
-        'account_owner', 'created_by', 'modified_by', 'created_at', 'updated_at'
+        'ID', 'Company Name', 'Email', 'Phone', 'Company Type', 'Industry', 
+        'Tags', 'Country', 'Region', 'Status', 'Website', 'Notes',
+        'Account Owner', 'Created By', 'Modified By', 'Created At', 'Updated At'
       ];
 
       const csvLines = [headers.join(',')];
 
       for (const account of data) {
-        const row = headers.map(header => {
-          let value = account[header as keyof typeof account];
-          
-          // Keep full ID for proper import matching (don't shorten)
-          
-          // Format dates for readability
-          if ((header === 'created_at' || header === 'updated_at') && value) {
-            try {
-              value = format(new Date(value as string), 'MMM dd, yyyy HH:mm');
-            } catch {
-              // Keep original if parsing fails
-            }
-          }
-          
-          // Convert UUID to display name for user fields
-          if ((header === 'account_owner' || header === 'created_by' || header === 'modified_by') && value) {
-            value = userNameMap[value as string] || '';
-          }
-          
-          if (header === 'tags' && Array.isArray(value)) {
-            value = value.join(';');
-          }
-          if (value === null || value === undefined) return '';
-          const strValue = String(value);
-          if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
-            return `"${strValue.replace(/"/g, '""')}"`;
-          }
-          return strValue;
-        });
+        const row = [
+          account.id || '',
+          escapeCSVField(account.company_name || ''),
+          escapeCSVField(account.email || ''),
+          escapeCSVField(account.phone || ''),
+          escapeCSVField(account.company_type || ''),
+          escapeCSVField(account.industry || ''),
+          account.tags ? account.tags.join(';') : '',
+          escapeCSVField(account.country || ''),
+          escapeCSVField(account.region || ''),
+          escapeCSVField(account.status || ''),
+          escapeCSVField(account.website || ''),
+          escapeCSVField(account.notes || ''),
+          account.account_owner ? (userNameMap[account.account_owner] || '') : '',
+          account.created_by ? (userNameMap[account.created_by] || '') : '',
+          account.modified_by ? (userNameMap[account.modified_by] || '') : '',
+          account.created_at ? format(new Date(account.created_at), 'yyyy-MM-dd HH:mm:ss') : '',
+          account.updated_at ? format(new Date(account.updated_at), 'yyyy-MM-dd HH:mm:ss') : '',
+        ];
         csvLines.push(row.join(','));
       }
 
@@ -310,7 +257,7 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.setAttribute('href', url);
-      a.setAttribute('download', `accounts_export_${new Date().toISOString().split('T')[0]}.csv`);
+      a.setAttribute('download', `accounts_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -335,3 +282,12 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
     isImporting
   };
 };
+
+// Helper function to escape CSV fields
+function escapeCSVField(field: string): string {
+  if (!field) return '';
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}

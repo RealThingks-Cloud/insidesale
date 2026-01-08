@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, startOfDay, addDays, isBefore, formatDistanceToNow } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,11 +31,12 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
-  RotateCcw,
   ExternalLink,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Task, TaskStatus } from '@/types/task';
@@ -43,6 +45,7 @@ import { TaskDetailModal } from '@/components/tasks/TaskDetailModal';
 import { cn } from '@/lib/utils';
 
 const POPUP_STORAGE_KEY = 'daily-tasks-popup-last-shown';
+const DONT_SHOW_TODAY_KEY = 'daily-tasks-dont-show-today';
 
 interface DailyTasksPopupProps {
   onViewTask?: (task: Task) => void;
@@ -63,11 +66,11 @@ const priorityDotColors = {
 };
 
 const moduleIcons: Record<string, React.ReactNode> = {
-  accounts: <Building2 className="h-3 w-3" />,
-  contacts: <User className="h-3 w-3" />,
-  leads: <Target className="h-3 w-3" />,
-  deals: <Briefcase className="h-3 w-3" />,
-  meetings: <Calendar className="h-3 w-3" />,
+  accounts: <Building2 className="h-3.5 w-3.5" />,
+  contacts: <User className="h-3.5 w-3.5" />,
+  leads: <Target className="h-3.5 w-3.5" />,
+  deals: <Briefcase className="h-3.5 w-3.5" />,
+  meetings: <Calendar className="h-3.5 w-3.5" />,
 };
 
 export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
@@ -80,6 +83,8 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   const [showOverdue, setShowOverdue] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [dontShowToday, setDontShowToday] = useState(false);
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -88,7 +93,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     if (!user?.id) return;
 
     const lastShown = localStorage.getItem(POPUP_STORAGE_KEY);
+    const dontShow = localStorage.getItem(DONT_SHOW_TODAY_KEY);
     const todayKey = startOfDay(new Date()).toISOString();
+
+    // Check if user requested to not show today
+    if (dontShow === todayKey) {
+      return;
+    }
 
     if (lastShown !== todayKey) {
       const timer = setTimeout(() => {
@@ -206,28 +217,6 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     },
   });
 
-  // Snooze task to tomorrow
-  const snoozeMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
-      const { error } = await supabase
-        .from('tasks')
-        .update({ due_date: tomorrow })
-        .eq('id', taskId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todays-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task snoozed to tomorrow');
-    },
-    onError: () => {
-      toast.error('Failed to snooze task');
-    },
-  });
-
   // Sort and filter tasks
   const sortedTodayTasks = useMemo(() => {
     let tasks = [...todaysTasks];
@@ -256,21 +245,84 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     return tasks;
   }, [todaysTasks, sortBy, showCompleted]);
 
-  // Calculate progress
+  // All tasks for keyboard navigation
+  const allNavigableTasks = useMemo(() => {
+    const tasks: Task[] = [];
+    if (showOverdue) {
+      tasks.push(...overdueTasks);
+    }
+    tasks.push(...sortedTodayTasks);
+    return tasks;
+  }, [overdueTasks, sortedTodayTasks, showOverdue]);
+
+  // Calculate stats
   const completedToday = todaysTasks.filter(t => t.status === 'completed').length;
   const totalToday = todaysTasks.length;
   const progressPercent = totalToday > 0 ? (completedToday / totalToday) * 100 : 0;
+  const highPriorityCount = sortedTodayTasks.filter(t => t.priority === 'high').length;
+  const overdueCount = overdueTasks.length;
 
   // Handle closing and remember that we showed it today
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     const todayKey = startOfDay(new Date()).toISOString();
     localStorage.setItem(POPUP_STORAGE_KEY, todayKey);
+    
+    if (dontShowToday) {
+      localStorage.setItem(DONT_SHOW_TODAY_KEY, todayKey);
+    }
+    
     setOpen(false);
-  };
+    setSelectedIndex(-1);
+  }, [dontShowToday]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault();
+          handleClose();
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex(prev => Math.min(prev + 1, allNavigableTasks.length - 1));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex(prev => Math.max(prev - 1, -1));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (selectedIndex >= 0 && allNavigableTasks[selectedIndex]) {
+            const task = allNavigableTasks[selectedIndex];
+            toggleTaskMutation.mutate({
+              taskId: task.id,
+              currentStatus: task.status
+            });
+          }
+          break;
+        case 'v':
+          if (selectedIndex >= 0 && allNavigableTasks[selectedIndex]) {
+            setSelectedTask(allNavigableTasks[selectedIndex]);
+            setIsDetailModalOpen(true);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, selectedIndex, allNavigableTasks, handleClose, toggleTaskMutation]);
 
   // Format time display
   const formatTime = (time: string | null) => {
-    if (!time || time === '00:00:00') return null;
+    if (!time) return null;
+    // Handle midnight properly
+    if (time === '00:00:00') {
+      return '12:00 AM';
+    }
     try {
       const [hours, minutes] = time.split(':');
       const date = new Date();
@@ -331,26 +383,28 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   };
 
   // Compact Task Card Component
-  const TaskCard = ({ task, isOverdue = false }: { task: Task; isOverdue?: boolean }) => {
+  const TaskCard = ({ task, isOverdue = false, isSelected = false }: { task: Task; isOverdue?: boolean; isSelected?: boolean }) => {
     const linkedEntity = getLinkedEntity(task);
     const formattedTime = formatTime(task.due_time);
     const relativeTime = !isOverdue ? getRelativeTime(task.due_date || '', task.due_time) : null;
     const isCompleted = task.status === 'completed';
     const priority = task.priority as keyof typeof priorityColors;
+    const isToggling = toggleTaskMutation.isPending;
 
     return (
       <div
         className={cn(
-          "group relative flex items-center gap-2 p-2 rounded-md border-l-2 transition-all cursor-pointer",
+          "group relative flex items-start gap-3 p-3 rounded-lg border-l-[3px] transition-all cursor-pointer",
           isOverdue ? "border-l-destructive bg-destructive/5" : priorityColors[priority] || 'border-l-border',
           isCompleted && "opacity-60",
+          isSelected && "ring-2 ring-primary ring-offset-1",
           "hover:bg-accent/50"
         )}
         onClick={() => handleTaskClick(task)}
       >
         {/* Priority Dot */}
         <div className={cn(
-          "w-2 h-2 rounded-full flex-shrink-0",
+          "w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1",
           isOverdue ? "bg-destructive" : priorityDotColors[priority] || 'bg-muted'
         )} />
 
@@ -360,38 +414,54 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
             e.stopPropagation();
             toggleTaskMutation.mutate({ taskId: task.id, currentStatus: task.status });
           }}
-          className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
-          disabled={toggleTaskMutation.isPending}
+          className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors mt-0.5"
+          disabled={isToggling}
         >
-          {isCompleted ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          {isToggling ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isCompleted ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
           ) : (
-            <Circle className="h-4 w-4" />
+            <Circle className="h-5 w-5" />
           )}
         </button>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={cn(
-              "text-sm font-medium truncate",
+              "text-base font-medium",
               isCompleted && "line-through text-muted-foreground"
             )}>
               {task.title}
             </span>
             
             {formattedTime && (
-              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 flex-shrink-0">
-                <Clock className="h-2.5 w-2.5 mr-0.5" />
+              <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 flex-shrink-0">
+                <Clock className="h-3 w-3 mr-1" />
                 {formattedTime}
               </Badge>
             )}
+
+            {priority === 'high' && !isCompleted && (
+              <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 flex-shrink-0">
+                <AlertCircle className="h-3 w-3 mr-0.5" />
+                High
+              </Badge>
+            )}
           </div>
+
+          {/* Description preview */}
+          {task.description && (
+            <p className="text-sm text-muted-foreground truncate mt-1 max-w-[400px]">
+              {task.description}
+            </p>
+          )}
           
           {linkedEntity && (
-            <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-1.5">
               <span className="text-muted-foreground">{linkedEntity.icon}</span>
-              <span className="text-xs text-muted-foreground truncate">{linkedEntity.name}</span>
+              <span className="text-sm text-muted-foreground truncate">{linkedEntity.name}</span>
             </div>
           )}
         </div>
@@ -403,31 +473,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  snoozeMutation.mutate(task.id);
-                }}
-                disabled={snoozeMutation.isPending}
-              >
-                <RotateCcw className="h-3 w-3" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Snooze to tomorrow</TooltipContent>
-          </Tooltip>
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
+                className="h-7 w-7"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTaskClick(task);
                 }}
               >
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>View details</TooltipContent>
@@ -436,13 +488,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
 
         {/* Relative time on right */}
         {relativeTime && !isCompleted && (
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 group-hover:hidden">
+          <span className="text-xs text-muted-foreground flex-shrink-0 group-hover:hidden">
             {relativeTime}
           </span>
         )}
 
         {isOverdue && (
-          <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 flex-shrink-0 group-hover:hidden">
+          <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 flex-shrink-0 group-hover:hidden">
             {format(new Date(task.due_date!), 'MMM d')}
           </Badge>
         )}
@@ -455,15 +507,15 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-lg p-0 gap-0">
+        <DialogContent className="sm:max-w-xl p-0 gap-0">
           {/* Header */}
-          <DialogHeader className="p-4 pb-3 border-b">
+          <DialogHeader className="p-5 pb-4 border-b">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                <ListTodo className="w-5 h-5 text-primary" />
+              <div className="p-2.5 rounded-full bg-primary/10">
+                <ListTodo className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-lg">Today's Tasks</DialogTitle>
+                <DialogTitle className="text-xl">Today's Tasks</DialogTitle>
                 <DialogDescription className="text-sm">
                   {format(new Date(), 'EEEE, MMMM d, yyyy')}
                 </DialogDescription>
@@ -473,21 +525,39 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
 
           {/* Progress Bar */}
           {totalToday > 0 && (
-            <div className="px-4 py-2 border-b bg-muted/30">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+            <div className="px-5 py-3 border-b bg-muted/30">
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
                 <span>{completedToday} of {totalToday} completed</span>
-                <span>{Math.round(progressPercent)}%</span>
+                <span className="font-medium">{Math.round(progressPercent)}%</span>
               </div>
-              <Progress value={progressPercent} className="h-1.5" />
+              <Progress value={progressPercent} className="h-2" />
+            </div>
+          )}
+
+          {/* Quick Stats */}
+          {(highPriorityCount > 0 || overdueCount > 0) && (
+            <div className="px-5 py-2.5 flex items-center gap-4 text-sm border-b bg-muted/10">
+              {highPriorityCount > 0 && (
+                <span className="flex items-center gap-1.5 text-destructive">
+                  <span className="w-2 h-2 rounded-full bg-destructive" />
+                  {highPriorityCount} high priority
+                </span>
+              )}
+              {overdueCount > 0 && (
+                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {overdueCount} overdue
+                </span>
+              )}
             </div>
           )}
 
           {/* Filters */}
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20">
+          <div className="flex items-center justify-between px-5 py-2.5 border-b bg-muted/20">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  <Filter className="h-3 w-3 mr-1" />
+                <Button variant="outline" size="sm" className="h-8 text-sm">
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
                   Sort: {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}
                 </Button>
               </DropdownMenuTrigger>
@@ -503,20 +573,20 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs gap-1"
+              className="h-8 text-sm gap-1.5"
               onClick={() => setShowCompleted(!showCompleted)}
             >
-              {showCompleted ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              {showCompleted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               {showCompleted ? 'Hide' : 'Show'} done
             </Button>
           </div>
 
           {/* Content */}
-          <ScrollArea className="max-h-[50vh]">
-            <div className="p-3 space-y-3">
+          <ScrollArea className="max-h-[55vh]">
+            <div className="p-4 space-y-4">
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <>
@@ -529,13 +599,18 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
                       >
                         <AlertTriangle className="h-4 w-4" />
                         <span>Overdue ({overdueTasks.length})</span>
-                        {showOverdue ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                        {showOverdue ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
                       </button>
                       
                       {showOverdue && (
-                        <div className="space-y-1.5">
-                          {overdueTasks.map(task => (
-                            <TaskCard key={task.id} task={task} isOverdue />
+                        <div className="space-y-2">
+                          {overdueTasks.map((task, index) => (
+                            <TaskCard 
+                              key={task.id} 
+                              task={task} 
+                              isOverdue 
+                              isSelected={selectedIndex === index}
+                            />
                           ))}
                         </div>
                       )}
@@ -550,18 +625,27 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
                           Due Today ({sortedTodayTasks.length})
                         </div>
                       )}
-                      <div className="space-y-1.5">
-                        {sortedTodayTasks.map(task => (
-                          <TaskCard key={task.id} task={task} />
-                        ))}
+                      <div className="space-y-2">
+                        {sortedTodayTasks.map((task, index) => {
+                          const actualIndex = showOverdue ? overdueTasks.length + index : index;
+                          return (
+                            <TaskCard 
+                              key={task.id} 
+                              task={task}
+                              isSelected={selectedIndex === actualIndex}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   ) : overdueTasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-3 opacity-70" />
-                      <p className="font-medium text-foreground">All caught up!</p>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                      </div>
+                      <p className="font-semibold text-lg text-foreground">All caught up!</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        No tasks due today
+                        No tasks due today. Enjoy your day! 🎉
                       </p>
                     </div>
                   ) : null}
@@ -571,19 +655,28 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           </ScrollArea>
 
           {/* Footer */}
-          <div className="flex justify-between items-center p-3 border-t bg-muted/20">
-            <Button variant="ghost" size="sm" onClick={handleClose}>
-              Dismiss
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={() => {
-                handleClose();
-                navigate('/tasks');
-              }}
-            >
-              View All Tasks
-            </Button>
+          <div className="flex justify-between items-center p-4 border-t bg-muted/20">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <Checkbox 
+                checked={dontShowToday}
+                onCheckedChange={(checked) => setDontShowToday(checked as boolean)}
+              />
+              Don't show again today
+            </label>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={handleClose}>
+                Dismiss
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  handleClose();
+                  navigate('/tasks');
+                }}
+              >
+                View All Tasks
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -594,7 +687,12 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           open={isDetailModalOpen}
           onOpenChange={(open) => {
             setIsDetailModalOpen(open);
-            if (!open) setSelectedTask(null);
+            if (!open) {
+              setSelectedTask(null);
+              // Refresh tasks when modal closes
+              queryClient.invalidateQueries({ queryKey: ['todays-tasks'] });
+              queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+            }
           }}
           task={selectedTask}
           onEdit={handleEditTask}

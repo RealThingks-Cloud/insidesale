@@ -1,3 +1,6 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
 /* Fonts loaded via index.html for optimal performance */
 @tailwind base;
 @tailwind components;
@@ -19,15 +22,15 @@ All colors MUST be HSL.
     --popover-foreground: 222 47% 11%;
 
     /* Light Blue theme with soft accents */
-    --primary: 200 98% 32%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 200 98% 39%;
+    --primary-foreground: 204 100% 97%;
     --primary-variant: 204 94% 45%;
 
     --secondary: 215 24% 26%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 215 20% 65%;
-    --muted-foreground: 215 16% 47%;
+    --muted-foreground: 222 47% 11%;
 
     --accent: 210 40% 98%;
     --accent-foreground: 215 19% 34%;
@@ -120,7 +123,7 @@ All colors MUST be HSL.
     --secondary-foreground: 228 84% 4%; /* #f8fafc - slate-50 */
 
     --muted: 215 16% 46%; /* #1e293b - slate-800 */
-    --muted-foreground: 215 20% 65%; /* #94a3b8 - slate-400 */
+    --muted-foreground: 210 40% 98%; /* #94a3b8 - slate-400 */
 
     --accent: 228 84% 4%; /* #3b82f6 - blue-500 */
     --accent-foreground: 215 20% 65%; /* #f8fafc - slate-50 */
@@ -257,7 +260,7 @@ All colors MUST be HSL.
   .page-header {
     @apply flex items-center justify-between h-14 px-4 border-b border-border bg-background;
   }
-  
+
   .page-title {
     @apply text-lg font-semibold text-foreground;
   }
@@ -271,7 +274,7 @@ All colors MUST be HSL.
   .table-compact th {
     @apply h-9 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide bg-muted/30;
   }
-  
+
   .table-compact td {
     @apply px-3 py-2 text-sm;
   }
@@ -343,7 +346,7 @@ All colors MUST be HSL.
   .skeleton-shimmer {
     @apply bg-muted/40 rounded-lg relative overflow-hidden;
   }
-  
+
   .skeleton-shimmer::after {
     content: '';
     position: absolute;
@@ -416,7 +419,7 @@ All colors MUST be HSL.
   }
 }
 
-/* Smooth Dialog Animations */
+/* Smooth Dialog Animations with cubic-bezier easing */
 @keyframes dialog-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -430,7 +433,7 @@ All colors MUST be HSL.
 @keyframes dialog-content-in {
   from { 
     opacity: 0; 
-    transform: translate(-50%, -48%) scale(0.96);
+    transform: translate(-50%, -48%) scale(0.97);
   }
   to { 
     opacity: 1; 
@@ -445,35 +448,58 @@ All colors MUST be HSL.
   }
   to { 
     opacity: 0; 
-    transform: translate(-50%, -48%) scale(0.96);
+    transform: translate(-50%, -48%) scale(0.97);
   }
 }
 
 [data-state="open"] > [data-radix-dialog-overlay] {
-  animation: dialog-overlay-in 0.2s ease-out;
+  animation: dialog-overlay-in 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 [data-state="closed"] > [data-radix-dialog-overlay] {
-  animation: dialog-overlay-out 0.15s ease-in;
+  animation: dialog-overlay-out 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 [data-state="open"] > [data-radix-dialog-content] {
-  animation: dialog-content-in 0.25s ease-out;
+  animation: dialog-content-in 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 [data-state="closed"] > [data-radix-dialog-content] {
-  animation: dialog-content-out 0.2s ease-in;
+  animation: dialog-content-out 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Ensure dialog content always has pointer events enabled */
+/* Enhanced modal styling for better visibility */
 [data-radix-dialog-content] {
-  pointer-events: auto !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25),
+              0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-/* Ensure inputs within dialogs are always interactive */
-[data-radix-dialog-content] input,
-[data-radix-dialog-content] textarea,
-[data-radix-dialog-content] select,
-[data-radix-dialog-content] button {
-  pointer-events: auto !important;
+/* Prevent background scroll when dialog is open */
+body:has([data-radix-dialog-overlay]) {
+  overflow: hidden;
+}
+
+/* Global smooth transition utilities */
+.transition-smooth {
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* GPU-accelerated transforms for smoother animations */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

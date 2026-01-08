@@ -61,7 +61,15 @@ const Notifications = () => {
     const dealMatch = message.match(/deal[:\s]+([a-f0-9-]{36})/);
     const leadMatch = message.match(/lead[:\s]+([a-f0-9-]{36})/);
     
-    if (notification.lead_id) {
+    // Task notification types - navigate to Tasks page
+    const taskNotificationTypes = [
+      'task_assigned', 'task_unassigned', 'task_completed', 
+      'task_updated', 'task_deleted'
+    ];
+    
+    if (taskNotificationTypes.includes(notification.notification_type)) {
+      navigate('/tasks');
+    } else if (notification.lead_id) {
       navigate(`/leads?highlight=${notification.lead_id}`);
     } else if (dealMatch) {
       const dealId = dealMatch[1];
@@ -102,6 +110,16 @@ const Notifications = () => {
         return '👤';
       case 'deal_update':
         return '💼';
+      case 'task_assigned':
+        return '✅';
+      case 'task_unassigned':
+        return '📤';
+      case 'task_completed':
+        return '🎉';
+      case 'task_updated':
+        return '📝';
+      case 'task_deleted':
+        return '🗑️';
       default:
         return '🔔';
     }

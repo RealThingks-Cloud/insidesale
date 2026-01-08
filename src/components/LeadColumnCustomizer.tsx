@@ -23,11 +23,11 @@ interface LeadColumnCustomizerProps {
 
 export const defaultLeadColumns: LeadColumnConfig[] = [
   { field: 'lead_name', label: 'Lead Name', visible: true, order: 0 },
-  { field: 'account_company_name', label: 'Company', visible: true, order: 1 },
+  { field: 'account_company_name', label: 'Company Name', visible: true, order: 1 },
   { field: 'position', label: 'Position', visible: true, order: 2 },
   { field: 'email', label: 'Email', visible: true, order: 3 },
   { field: 'phone_no', label: 'Phone', visible: true, order: 4 },
-  { field: 'lead_status', label: 'Status', visible: true, order: 5 },
+  { field: 'lead_status', label: 'Lead Status', visible: true, order: 5 },
   { field: 'contact_source', label: 'Source', visible: true, order: 6 },
   { field: 'linkedin', label: 'LinkedIn', visible: false, order: 7 },
   { field: 'created_time', label: 'Created Date', visible: false, order: 8 },
