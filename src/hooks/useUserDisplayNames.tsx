@@ -152,12 +152,14 @@ export const useUserDisplayNames = (userIds: string[]) => {
     previousUserIds.current = validUserIds;
 
     // Check cache first for immediate display
+    // Skip cached "Unknown User" values to force refetch (in case RLS was fixed)
     const cachedNames: Record<string, string> = {};
     const uncachedIds: string[] = [];
     
     validUserIds.forEach(id => {
-      if (displayNameCache.has(id)) {
-        cachedNames[id] = displayNameCache.get(id)!;
+      const cached = displayNameCache.get(id);
+      if (cached && cached !== 'Unknown User') {
+        cachedNames[id] = cached;
       } else {
         uncachedIds.push(id);
       }

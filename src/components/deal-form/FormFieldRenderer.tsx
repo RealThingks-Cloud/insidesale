@@ -519,16 +519,7 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
       case 'end_date':
       case 'rfq_received_date':
       case 'proposal_due_date':
-        return (
-          <Input
-            type="date"
-            value={getStringValue(value)}
-            onChange={(e) => {
-              console.log(`Date field ${field} update: setting to ${e.target.value}`);
-              onChange(field, e.target.value);
-            }}
-          />
-        );
+        return renderDatePicker(field, value);
 
       case 'total_contract_value':
       case 'project_duration':
@@ -603,7 +594,8 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
               console.log(`Textarea field ${field} update: setting to ${e.target.value}`);
               onChange(field, e.target.value);
             }}
-            rows={3}
+            rows={2}
+            className="min-h-[60px] resize-y"
             placeholder={`Enter ${getFieldLabel(field).toLowerCase()}...`}
           />
         );
@@ -630,11 +622,11 @@ export const FormFieldRenderer = ({ field, value, onChange, onLeadSelect, error 
   };
 
   return (
-    <div className="space-y-2">
-      <Label>{getFieldLabel(field)}</Label>
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">{getFieldLabel(field)}</Label>
       {renderField()}
       {error && (
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-xs text-destructive mt-1">{error}</p>
       )}
     </div>
   );

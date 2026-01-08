@@ -327,16 +327,8 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
         // Delete notifications by lead_id
         await supabase.from('notifications').delete().eq('lead_id', leadToDelete.id);
 
-        // Get action items and delete notifications for them
-        const { data: actionItems } = await supabase.from('lead_action_items').select('id').eq('lead_id', leadToDelete.id);
-        if (actionItems && actionItems.length > 0) {
-          const actionItemIds = actionItems.map(item => item.id);
-          await supabase.from('notifications').delete().in('action_item_id', actionItemIds);
-        }
-
-        // Delete lead action items
-        const { error: actionItemsError } = await supabase.from('lead_action_items').delete().eq('lead_id', leadToDelete.id);
-        if (actionItemsError) throw actionItemsError;
+        // Unlink tasks from this lead (tasks can exist independently)
+        await supabase.from('tasks').update({ lead_id: null }).eq('lead_id', leadToDelete.id);
       }
 
       // Delete the lead
@@ -372,15 +364,8 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
         // Delete notifications for all selected leads
         await supabase.from('notifications').delete().in('lead_id', selectedLeads);
         
-        // Get all action items for selected leads
-        const { data: actionItems } = await supabase.from('lead_action_items').select('id').in('lead_id', selectedLeads);
-        if (actionItems && actionItems.length > 0) {
-          const actionItemIds = actionItems.map(item => item.id);
-          await supabase.from('notifications').delete().in('action_item_id', actionItemIds);
-        }
-        
-        // Delete all action items
-        await supabase.from('lead_action_items').delete().in('lead_id', selectedLeads);
+        // Unlink tasks from these leads
+        await supabase.from('tasks').update({ lead_id: null }).in('lead_id', selectedLeads);
       }
       
       const { error } = await supabase.from('leads').delete().in('id', selectedLeads);
@@ -580,8 +565,8 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
           ) : (
             <Table className="table-fixed w-full">
               <TableHeader>
-                <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
-                  <TableHead className="w-[50px] text-center font-bold text-foreground">
+                <TableRow className="sticky top-0 z-20 bg-muted border-b-2 shadow-sm">
+                  <TableHead className="w-[50px] text-center font-bold text-foreground bg-muted">
                     <div className="flex justify-center">
                       <Checkbox 
                         checked={selectedLeads.length > 0 && selectedLeads.length === Math.min(pageLeads.length, 50)} 
@@ -609,7 +594,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                     return (
                       <TableHead 
                         key={column.field} 
-                        className={`${getColumnWidth(column.field)} text-left font-bold text-foreground px-4 py-3 whitespace-nowrap`}
+                        className={`${getColumnWidth(column.field)} text-left font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted`}
                       >
                         <div 
                           className="group flex items-center gap-2 cursor-pointer hover:text-primary" 
@@ -621,7 +606,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                       </TableHead>
                     );
                   })}
-                  <TableHead className="w-[100px] text-center font-bold text-foreground px-4 py-3">
+                  <TableHead className="w-[100px] text-center font-bold text-foreground px-4 py-3 bg-muted">
                     Actions
                   </TableHead>
                 </TableRow>

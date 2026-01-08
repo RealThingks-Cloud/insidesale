@@ -185,7 +185,8 @@ const generateEmailHtml = (
   taskPriority: string | undefined,
   updatedByName: string | undefined,
   assigneeName: string | undefined,
-  appUrl: string
+  appUrl: string,
+  taskId: string
 ): string => {
   const { heading, message, color } = getEmailContent(
     type, taskTitle, recipientName, taskDescription, taskDueDate, taskPriority, updatedByName, assigneeName, appUrl
@@ -262,7 +263,7 @@ const generateEmailHtml = (
 
       <!-- CTA Button -->
       <div style="text-align: center; margin-top: 24px;">
-        <a href="${appUrl}/tasks" style="display: inline-block; padding: 12px 32px; background: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px;">
+        <a href="${appUrl}/tasks?viewId=${taskId}" style="display: inline-block; padding: 12px 32px; background: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px;">
           View Task →
         </a>
       </div>
@@ -382,7 +383,8 @@ const handler = async (req: Request): Promise<Response> => {
       taskPriority,
       senderDisplayName, // Use sender's display name
       assigneeName,
-      appUrl
+      appUrl,
+      taskId
     );
 
     const emailSubject = getEmailSubject(notificationType, taskTitle);

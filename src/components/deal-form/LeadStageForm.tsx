@@ -15,11 +15,11 @@ export const LeadStageForm = ({ formData, onFieldChange, onLeadSelect, fieldErro
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Lead Stage</CardTitle>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg font-semibold">Lead Stage</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {fields.map(field => (
             <FormFieldRenderer
               key={field}

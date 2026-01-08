@@ -8,7 +8,6 @@ import {
   Calendar, 
   FileText, 
   CheckSquare,
-  Briefcase,
   Clock,
   Loader2,
 } from "lucide-react";
@@ -17,7 +16,7 @@ import { ActivityDetailModal } from "@/components/shared/ActivityDetailModal";
 
 interface TimelineItem {
   id: string;
-  type: 'activity' | 'meeting' | 'deal';
+  type: 'activity' | 'meeting';
   title: string;
   description?: string;
   date: string;
@@ -65,22 +64,26 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
     try {
       const items: TimelineItem[] = [];
 
-      // Fetch lead action items (treated as activities)
-      const { data: actionItems } = await supabase
-        .from('lead_action_items')
+      // Fetch tasks linked to this lead (replacing lead_action_items)
+      const { data: tasks } = await supabase
+        .from('tasks')
         .select('*')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
 
-      (actionItems || []).forEach(item => {
+      (tasks || []).forEach(task => {
+        // Extract activity type from title if it's prefixed (e.g., "[CALL] ...")
+        const typeMatch = task.title?.match(/^\[([A-Z]+)\]/);
+        const activityType = typeMatch ? typeMatch[1].toLowerCase() : 'task';
+        
         items.push({
-          id: `action-${item.id}`,
+          id: `task-${task.id}`,
           type: 'activity',
-          title: item.next_action,
-          description: `Status: ${item.status}`,
-          date: item.created_at,
-          icon: <CheckSquare className="h-4 w-4" />,
-          metadata: { type: 'task', status: item.status }
+          title: task.title?.replace(/^\[[A-Z]+\]\s*/, '') || 'Task',
+          description: task.description || `Status: ${task.status}`,
+          date: task.created_at,
+          icon: getActivityIcon(activityType),
+          metadata: { type: activityType, status: task.status }
         });
       });
 
