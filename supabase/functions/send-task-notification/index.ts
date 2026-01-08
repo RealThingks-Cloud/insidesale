@@ -372,7 +372,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const appUrl = "https://crm.realthingks.com";
+    const appUrl = Deno.env.get("APP_URL") || "https://insidesales.realthingks.com";
     const emailHtml = generateEmailHtml(
       notificationType,
       taskTitle,
