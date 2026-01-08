@@ -353,8 +353,8 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error fetching notification preferences:", prefsError);
     }
 
-    // Use production app URL
-    const appUrl = "https://crm.realthingks.com";
+    // Use production app URL (configurable via secret)
+    const appUrl = Deno.env.get("APP_URL") || "https://insidesales.realthingks.com";
     
     // Send emails with timezone awareness and duplicate prevention
     const emailResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
