@@ -32,9 +32,6 @@ interface Contact {
   email?: string | null;
   phone_no?: string | null;
   linkedin?: string | null;
-  website?: string | null;
-  region?: string | null;
-  industry?: string | null;
   contact_source?: string | null;
   description?: string | null;
   tags?: string[] | null;
@@ -282,13 +279,6 @@ export const ContactDetailModal = ({
                         LinkedIn Profile
                       </a>
                     </div>}
-                  
-                  {contact.website && <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <a href={contact.website} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">
-                        {contact.website}
-                      </a>
-                    </div>}
                 </div>
 
                 <div className="space-y-3">
@@ -299,16 +289,6 @@ export const ContactDetailModal = ({
                       {contact.account_id ? <button onClick={() => setShowAccountModal(true)} className="text-sm text-primary hover:underline">
                           {accountName || contact.company_name}
                         </button> : <span className="text-sm">{contact.company_name}</span>}
-                    </div>}
-                  
-                  {contact.industry && <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{contact.industry}</span>
-                    </div>}
-                  
-                  {contact.region && <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{contact.region}</span>
                     </div>}
                   
                   {contact.contact_source && <div className="flex items-center gap-2">

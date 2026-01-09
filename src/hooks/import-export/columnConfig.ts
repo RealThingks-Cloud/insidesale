@@ -8,12 +8,12 @@ interface ColumnConfig {
 // Define column mappings for different modules
 export const getColumnConfig = (table: string): ColumnConfig => {
   const configs: Record<string, ColumnConfig> = {
-    // Contacts - Removed website, industry, region as per requirements
+    // Contacts - Removed website, industry, region, country, segment as per requirements
     contacts_module: {
       allowedColumns: [
         'id', 'contact_name', 'company_name', 'position', 'email', 
-        'phone_no', 'linkedin', 'contact_source', 'country', 'tags', 
-        'description', 'segment', 'last_contacted_at', 'account_id',
+        'phone_no', 'linkedin', 'contact_source', 'tags', 
+        'description', 'last_contacted_at', 'account_id',
         'contact_owner', 'created_by', 'modified_by', 'created_time', 'modified_time'
       ],
       required: ['contact_name'],
@@ -24,8 +24,8 @@ export const getColumnConfig = (table: string): ColumnConfig => {
     contacts: {
       allowedColumns: [
         'id', 'contact_name', 'company_name', 'position', 'email', 
-        'phone_no', 'linkedin', 'contact_source', 'country', 'tags', 
-        'description', 'segment', 'last_contacted_at', 'account_id',
+        'phone_no', 'linkedin', 'contact_source', 'tags', 
+        'description', 'last_contacted_at', 'account_id',
         'contact_owner', 'created_by', 'modified_by', 'created_time', 'modified_time'
       ],
       required: ['contact_name'],
