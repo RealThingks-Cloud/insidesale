@@ -53,6 +53,7 @@ const contactSchema = z.object({
     .or(z.literal("")),
   contact_source: z.string().optional(),
   description: z.string().max(1000, "Description must be less than 1000 characters").optional(),
+  contact_owner: z.string().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -110,6 +111,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
   const [accountSearch, setAccountSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [users, setUsers] = useState<{ id: string; full_name: string | null }[]>([]);
   
   // Merge modal state
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -163,24 +165,28 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
       linkedin: "",
       contact_source: "",
       description: "",
+      contact_owner: "",
     },
   });
 
-  // Fetch accounts for dropdown
+  // Fetch accounts and users for dropdowns
   useEffect(() => {
-    const fetchAccounts = async () => {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('id, company_name')
-        .order('company_name', { ascending: true });
+    const fetchData = async () => {
+      const [accountsResult, usersResult] = await Promise.all([
+        supabase.from('accounts').select('id, company_name').order('company_name', { ascending: true }),
+        supabase.from('profiles').select('id, full_name').order('full_name', { ascending: true })
+      ]);
       
-      if (!error && data) {
-        setAccounts(data);
+      if (!accountsResult.error && accountsResult.data) {
+        setAccounts(accountsResult.data);
+      }
+      if (!usersResult.error && usersResult.data) {
+        setUsers(usersResult.data);
       }
     };
     
     if (open) {
-      fetchAccounts();
+      fetchData();
     }
   }, [open]);
 
@@ -195,6 +201,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         linkedin: contact.linkedin || "",
         contact_source: contact.contact_source || "",
         description: contact.description || "",
+        contact_owner: (contact as any).contact_owner || "",
       });
       setSelectedTags(contact.tags || []);
     } else {
@@ -207,6 +214,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         linkedin: "",
         contact_source: "",
         description: "",
+        contact_owner: "",
       });
       setSelectedTags([]);
     }
@@ -261,7 +269,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         tags: selectedTags,
         created_by: user.data.user.id,
         modified_by: user.data.user.id,
-        contact_owner: user.data.user.id,
+        contact_owner: data.contact_owner || user.data.user.id,
       };
 
       if (contact) {
@@ -503,6 +511,31 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
                         {contactSources.map((source) => (
                           <SelectItem key={source} value={source}>
                             {source}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contact_owner"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contact Owner</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select owner..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.full_name || 'Unknown User'}
                           </SelectItem>
                         ))}
                       </SelectContent>

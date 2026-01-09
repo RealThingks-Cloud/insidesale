@@ -43,6 +43,7 @@ const accountSchema = z.object({
       message: "Please enter a valid phone number (e.g., +1 234 567 8900)"
     })
     .optional(),
+  account_owner: z.string().optional(),
 });
 
 type AccountFormData = z.infer<typeof accountSchema>;
@@ -80,6 +81,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+  const [users, setUsers] = useState<{ id: string; full_name: string | null }[]>([]);
   
   // Merge modal state
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -122,6 +124,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
       notes: "",
       industry: "",
       phone: "",
+      account_owner: "",
     },
   });
 
@@ -134,6 +137,24 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
       setAvailableCountries([]);
     }
   }, [watchedRegion]);
+
+  // Fetch users for owner dropdown
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .order('full_name', { ascending: true });
+      
+      if (!error && data) {
+        setUsers(data);
+      }
+    };
+    
+    if (open) {
+      fetchUsers();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (account) {
@@ -148,7 +169,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
         notes: account.notes || "",
         industry: account.industry || "",
         phone: account.phone || "",
-        
+        account_owner: account.account_owner || "",
       });
       setSelectedTags(account.tags || []);
       if (account.region && regionCountries[account.region]) {
@@ -166,7 +187,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
         notes: "",
         industry: "",
         phone: "",
-        
+        account_owner: "",
       });
       setSelectedTags([]);
     }
@@ -211,7 +232,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
         }
       }
 
-      // Only set account_owner on create, not update
+      // Build account data with owner
       const accountData = {
         company_name: data.company_name,
         email: data.email || null,
@@ -225,8 +246,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
         industry: data.industry || null,
         phone: data.phone || null,
         modified_by: user.data.user.id,
-        // Only set account_owner on new accounts
-        ...(account ? {} : { account_owner: user.data.user.id }),
+        account_owner: data.account_owner || user.data.user.id,
       };
 
       if (account) {
@@ -489,6 +509,31 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
                         {statuses.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="account_owner"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Owner</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select owner..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.full_name || 'Unknown User'}
                           </SelectItem>
                         ))}
                       </SelectContent>

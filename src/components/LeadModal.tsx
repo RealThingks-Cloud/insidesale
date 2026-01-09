@@ -33,6 +33,7 @@ const leadSchema = z.object({
   contact_source: z.string().optional(),
   lead_status: z.string().optional(),
   description: z.string().max(1000, "Description must be less than 1000 characters").optional(),
+  contact_owner: z.string().optional(),
 });
 
 type LeadFormData = z.infer<typeof leadSchema>;
@@ -76,6 +77,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [users, setUsers] = useState<{ id: string; full_name: string | null }[]>([]);
   
   // Merge modal state
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -149,24 +151,28 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
       contact_source: "",
       lead_status: "New",
       description: "",
+      contact_owner: "",
     },
   });
 
-  // Fetch accounts for dropdown
+  // Fetch accounts and users for dropdowns
   useEffect(() => {
-    const fetchAccounts = async () => {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('id, company_name')
-        .order('company_name', { ascending: true });
+    const fetchData = async () => {
+      const [accountsResult, usersResult] = await Promise.all([
+        supabase.from('accounts').select('id, company_name').order('company_name', { ascending: true }),
+        supabase.from('profiles').select('id, full_name').order('full_name', { ascending: true })
+      ]);
       
-      if (!error && data) {
-        setAccounts(data);
+      if (!accountsResult.error && accountsResult.data) {
+        setAccounts(accountsResult.data);
+      }
+      if (!usersResult.error && usersResult.data) {
+        setUsers(usersResult.data);
       }
     };
     
     if (open) {
-      fetchAccounts();
+      fetchData();
     }
   }, [open]);
 
@@ -182,6 +188,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         contact_source: lead.contact_source || "",
         lead_status: lead.lead_status || "New",
         description: lead.description || "",
+        contact_owner: (lead as any).contact_owner || "",
       });
     } else {
       form.reset({
@@ -194,6 +201,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         contact_source: "",
         lead_status: "New",
         description: "",
+        contact_owner: "",
       });
     }
   }, [lead, form]);
@@ -243,6 +251,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         lead_status: data.lead_status || 'New',
         description: data.description || null,
         modified_by: user.data.user.id,
+        contact_owner: data.contact_owner || user.data.user.id,
       };
 
       if (lead) {
@@ -276,7 +285,6 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
         const newLeadData = {
           ...baseLeadData,
           created_by: user.data.user.id,
-          contact_owner: user.data.user.id,
           created_time: new Date().toISOString(),
         };
         
@@ -540,6 +548,31 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
                               )}
                               {status.status_name}
                             </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contact_owner"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lead Owner</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select owner..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.full_name || 'Unknown User'}
                           </SelectItem>
                         ))}
                       </SelectContent>
