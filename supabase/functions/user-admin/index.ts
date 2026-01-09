@@ -153,9 +153,9 @@ serve(async (req) => {
         }
 
         const { userId, newRole } = body;
-        if (!userId || !newRole || !['admin', 'user'].includes(newRole)) {
+        if (!userId || !newRole || !['admin', 'manager', 'user'].includes(newRole)) {
           return new Response(
-            JSON.stringify({ error: 'Valid user ID and role (admin/user) are required' }),
+            JSON.stringify({ error: 'Valid user ID and role (admin/manager/user) are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -193,6 +193,16 @@ serve(async (req) => {
               JSON.stringify({ error: `Role update failed: ${roleError.message}` }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
+          }
+
+          // Clear user's cached permissions immediately so role change takes effect instantly
+          const { error: cacheError } = await supabaseAdmin
+            .from('user_access_cache')
+            .delete()
+            .eq('user_id', userId);
+
+          if (cacheError) {
+            console.warn('Failed to clear user cache (non-critical):', cacheError);
           }
 
           console.log('Role updated successfully in both auth and database by admin:', user.user.email);

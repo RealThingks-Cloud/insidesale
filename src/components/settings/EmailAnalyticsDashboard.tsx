@@ -19,7 +19,8 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { Mail, Eye, MousePointer, TrendingUp } from 'lucide-react';
+import { Mail, Eye, MousePointer, TrendingUp, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface DailyStats {
   date: string;
@@ -144,19 +145,44 @@ export const EmailAnalyticsDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with date range selector */}
+      {/* Header with date range selector and export */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-lg font-semibold">Email Analytics</h2>
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-[180px]" aria-label="Select date range">
-            <SelectValue placeholder="Select date range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <div>
+          <h2 className="text-lg font-semibold">Email Analytics</h2>
+          <p className="text-sm text-muted-foreground">Track your email performance and engagement</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[150px]" aria-label="Select date range">
+              <SelectValue placeholder="Select date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              const headers = ["Date", "Sent", "Opened", "Clicked"];
+              const rows = dailyStats.map(stat => [stat.date, stat.sent, stat.opened, stat.clicked]);
+              const csvContent = [
+                headers.join(","),
+                ...rows.map(row => row.join(","))
+              ].join("\n");
+              const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(blob);
+              link.download = `email_analytics_${dateRange}_days.csv`;
+              link.click();
+            }}
+            disabled={dailyStats.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

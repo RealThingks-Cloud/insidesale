@@ -221,9 +221,39 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
 
       const userNameMap = await UserNameUtils.fetchUserDisplayNames(userIds);
 
+      // Fetch linked data counts for each account
+      const accountIds = data.map(a => a.id);
+      
+      // Fetch tasks count per account
+      const { data: tasksData } = await supabase
+        .from('tasks')
+        .select('account_id')
+        .in('account_id', accountIds);
+      
+      const tasksCounts: Record<string, number> = {};
+      tasksData?.forEach(task => {
+        if (task.account_id) {
+          tasksCounts[task.account_id] = (tasksCounts[task.account_id] || 0) + 1;
+        }
+      });
+
+      // Fetch leads count per account
+      const { data: leadsData } = await supabase
+        .from('leads')
+        .select('account_id')
+        .in('account_id', accountIds);
+      
+      const leadsCounts: Record<string, number> = {};
+      leadsData?.forEach(lead => {
+        if (lead.account_id) {
+          leadsCounts[lead.account_id] = (leadsCounts[lead.account_id] || 0) + 1;
+        }
+      });
+
       const headers = [
         'ID', 'Company Name', 'Email', 'Phone', 'Company Type', 'Industry', 
         'Tags', 'Country', 'Region', 'Status', 'Website', 'Notes',
+        'Last Activity Date', 'Linked Contacts', 'Linked Deals', 'Linked Leads', 'Tasks Count',
         'Account Owner', 'Created By', 'Modified By', 'Created At', 'Updated At'
       ];
 
@@ -243,6 +273,11 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
           escapeCSVField(account.status || ''),
           escapeCSVField(account.website || ''),
           escapeCSVField(account.notes || ''),
+          account.last_activity_date ? format(new Date(account.last_activity_date), 'yyyy-MM-dd') : '',
+          account.contact_count || 0,
+          account.deal_count || 0,
+          leadsCounts[account.id] || 0,
+          tasksCounts[account.id] || 0,
           account.account_owner ? (userNameMap[account.account_owner] || '') : '',
           account.created_by ? (userNameMap[account.created_by] || '') : '',
           account.modified_by ? (userNameMap[account.modified_by] || '') : '',

@@ -34,6 +34,7 @@ export const useTasksImportExport = (tasks: Task[], onRefresh: () => void) => {
         'Description',
         'Status',
         'Priority',
+        'Category',
         'Due Date',
         'Due Time',
         'Module Type',
@@ -45,6 +46,7 @@ export const useTasksImportExport = (tasks: Task[], onRefresh: () => void) => {
         'Assigned To',
         'Created By',
         'Created At',
+        'Updated At',
         'Completed At',
       ];
 
@@ -58,6 +60,7 @@ export const useTasksImportExport = (tasks: Task[], onRefresh: () => void) => {
           task.description || '',
           task.status,
           task.priority,
+          task.category || '',
           task.due_date || '',
           task.due_time || '',
           task.module_type || '',
@@ -69,6 +72,7 @@ export const useTasksImportExport = (tasks: Task[], onRefresh: () => void) => {
           assignedToName,
           createdByName,
           task.created_at ? format(new Date(task.created_at), 'yyyy-MM-dd HH:mm:ss') : '',
+          task.updated_at ? format(new Date(task.updated_at), 'yyyy-MM-dd HH:mm:ss') : '',
           task.completed_at ? format(new Date(task.completed_at), 'yyyy-MM-dd HH:mm:ss') : '',
         ];
       });

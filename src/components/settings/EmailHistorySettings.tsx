@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Mail, Search, Eye, MousePointer, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight, X, RotateCcw, Loader2 } from "lucide-react";
+import { Mail, Search, Eye, MousePointer, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight, X, RotateCcw, Loader2, Download, Calendar } from "lucide-react";
 import { format } from "date-fns";
 
 interface EmailHistoryRecord {
@@ -44,6 +44,7 @@ const EmailHistorySettings = () => {
   const [selectedEmail, setSelectedEmail] = useState<EmailHistoryRecord | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<string>("all");
 
   useEffect(() => {
     fetchEmailHistory();
@@ -52,7 +53,7 @@ const EmailHistorySettings = () => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterType]);
+  }, [searchQuery, filterType, dateRange]);
 
   const fetchEmailHistory = async () => {
     if (!user) return;
@@ -157,11 +158,22 @@ const EmailHistorySettings = () => {
       email.recipient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       email.subject?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    if (filterType === "all") return matchesSearch;
-    if (filterType === "contact") return matchesSearch && email.contact_id;
-    if (filterType === "lead") return matchesSearch && email.lead_id;
-    if (filterType === "account") return matchesSearch && email.account_id;
-    return matchesSearch;
+    // Date range filter
+    let matchesDate = true;
+    if (dateRange !== "all") {
+      const emailDate = new Date(email.sent_at);
+      const now = new Date();
+      const days = parseInt(dateRange);
+      const cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      matchesDate = emailDate >= cutoffDate;
+    }
+    
+    let matchesType = true;
+    if (filterType === "contact") matchesType = !!email.contact_id;
+    else if (filterType === "lead") matchesType = !!email.lead_id;
+    else if (filterType === "account") matchesType = !!email.account_id;
+    
+    return matchesSearch && matchesDate && matchesType;
   });
 
   // Pagination calculations
@@ -176,6 +188,31 @@ const EmailHistorySettings = () => {
     clicked: emails.filter(e => (e.click_count || 0) > 0).length,
     openRate: emails.length > 0 ? Math.round((emails.filter(e => (e.open_count || 0) > 0).length / emails.length) * 100) : 0,
     clickRate: emails.length > 0 ? Math.round((emails.filter(e => (e.click_count || 0) > 0).length / emails.length) * 100) : 0,
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["Recipient Name", "Recipient Email", "Subject", "Sent At", "Status", "Opens", "Clicks", "Type"];
+    const rows = filteredEmails.map(email => [
+      email.recipient_name || "Unknown",
+      email.recipient_email,
+      email.subject,
+      format(new Date(email.sent_at), "yyyy-MM-dd HH:mm"),
+      email.status,
+      email.open_count || 0,
+      email.click_count || 0,
+      getEntityType(email)
+    ]);
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `email_history_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
   };
 
   return (
@@ -237,8 +274,8 @@ const EmailHistorySettings = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by recipient, subject..."
@@ -247,8 +284,20 @@ const EmailHistorySettings = () => {
             className="pl-9"
           />
         </div>
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <Calendar className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Date range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Time</SelectItem>
+            <SelectItem value="7">Last 7 days</SelectItem>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectTrigger className="w-full sm:w-[150px]">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
@@ -259,10 +308,16 @@ const EmailHistorySettings = () => {
             <SelectItem value="account">Accounts</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={fetchEmailHistory} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchEmailHistory} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredEmails.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Email Table */}

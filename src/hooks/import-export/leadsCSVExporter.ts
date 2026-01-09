@@ -6,7 +6,7 @@ export class LeadsCSVExporter {
   async exportLeads(leads: any[]): Promise<string> {
     console.log('LeadsCSVExporter: Starting export of', leads.length, 'leads');
     
-    // Define the exact field order as required (removed action_items_json)
+    // Define the exact field order as required - matches DB schema
     const fieldOrder = [
       'id',
       'lead_name', 
@@ -21,6 +21,7 @@ export class LeadsCSVExporter {
       'industry',
       'country',
       'description',
+      'account_id',
       'contact_owner',
       'created_by',
       'modified_by',

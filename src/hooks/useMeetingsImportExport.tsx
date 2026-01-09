@@ -202,7 +202,7 @@ export const useMeetingsImportExport = (onImportComplete: () => void) => {
       });
       const userNameMap = await UserNameUtils.fetchUserDisplayNames(userIds);
 
-      // CSV headers with user-friendly format
+      // CSV headers with user-friendly format - Added deal_id, account_id
       const headers = [
         'ID',
         'Subject',
@@ -215,14 +215,17 @@ export const useMeetingsImportExport = (onImportComplete: () => void) => {
         'Description',
         'Notes',
         'Join URL',
-        'Lead/Contact',
+        'Lead ID',
+        'Contact ID',
+        'Deal ID',
+        'Account ID',
         'Created By',
-        'Created At'
+        'Created At',
+        'Updated At'
       ];
 
       // Build CSV rows with formatted values
       const rows = meetings.map(meeting => {
-        const leadContact = (meeting as any).lead_name || (meeting as any).contact_name || '';
         const createdByName = meeting.created_by ? (userNameMap[meeting.created_by] || '') : '';
         
         return [
@@ -237,9 +240,13 @@ export const useMeetingsImportExport = (onImportComplete: () => void) => {
           escapeCSVField(meeting.description || ''),
           escapeCSVField(meeting.notes || ''),
           meeting.join_url || '',
-          escapeCSVField(leadContact),
+          meeting.lead_id || '',
+          meeting.contact_id || '',
+          (meeting as any).deal_id || '',
+          (meeting as any).account_id || '',
           createdByName,
-          UserNameUtils.formatDateTimeForExport((meeting as any).created_at)
+          UserNameUtils.formatDateTimeForExport((meeting as any).created_at),
+          UserNameUtils.formatDateTimeForExport((meeting as any).updated_at)
         ].join(',');
       });
 

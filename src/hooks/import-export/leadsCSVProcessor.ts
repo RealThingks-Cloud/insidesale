@@ -192,7 +192,7 @@ export class LeadsCSVProcessor {
       leadRecord.created_by = userId;
     }
 
-    // Map CSV fields to database fields in exact order
+    // Map CSV fields to database fields in exact order - Added account_id
     const fieldMapping: Record<string, string> = {
       'lead_name': 'lead_name',
       'company_name': 'company_name',
@@ -205,7 +205,8 @@ export class LeadsCSVProcessor {
       'lead_status': 'lead_status',
       'industry': 'industry',
       'country': 'country',
-      'description': 'description'
+      'description': 'description',
+      'account_id': 'account_id'
     };
 
     Object.entries(fieldMapping).forEach(([csvField, dbField]) => {

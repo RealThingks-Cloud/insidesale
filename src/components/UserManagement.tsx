@@ -234,9 +234,9 @@ const UserManagement = () => {
       case 'admin':
         return 'Admin';
       case 'manager':
-        return 'Management';
+        return 'Manager';
       default:
-        return 'Employee';
+        return 'User';
     }
   }, []);
   const handleSort = (field: string) => {

@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, Info, Eye } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Copy, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -42,6 +42,7 @@ const EmailTemplatesSettings = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     subject: "",
@@ -74,19 +75,32 @@ const EmailTemplatesSettings = () => {
     fetchTemplates();
   }, []);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(templates.length / ITEMS_PER_PAGE);
+  // Filter and pagination calculations
+  const filteredTemplates = useMemo(() => {
+    if (!searchQuery.trim()) return templates;
+    const query = searchQuery.toLowerCase();
+    return templates.filter(t => 
+      t.name.toLowerCase().includes(query) || 
+      t.subject.toLowerCase().includes(query)
+    );
+  }, [templates, searchQuery]);
+
+  const totalPages = Math.ceil(filteredTemplates.length / ITEMS_PER_PAGE);
   const paginatedTemplates = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return templates.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [templates, currentPage]);
+    return filteredTemplates.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredTemplates, currentPage]);
 
-  // Reset to first page when templates change
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1);
     }
-  }, [templates, totalPages, currentPage]);
+  }, [filteredTemplates, totalPages, currentPage]);
 
   const handleOpenModal = (template?: EmailTemplate) => {
     if (template) {
@@ -162,8 +176,12 @@ const EmailTemplatesSettings = () => {
 
       if (error) throw error;
 
+      // Immediately remove from local state for instant UI update
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      setShowDeleteDialog(false);
+      setTemplateToDelete(null);
+      
       toast({ title: "Success", description: "Template deleted successfully" });
-      fetchTemplates();
     } catch (error) {
       console.error('Delete error:', error);
       toast({
@@ -171,6 +189,36 @@ const EmailTemplatesSettings = () => {
         description: "Failed to delete template",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDuplicate = async (template: EmailTemplate) => {
+    setSaving(true);
+    try {
+      const duplicateData = {
+        name: `${template.name} (Copy)`,
+        subject: template.subject,
+        body: template.body,
+        created_by: user?.id
+      };
+
+      const { error } = await supabase
+        .from('email_templates')
+        .insert([duplicateData]);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Template duplicated successfully" });
+      fetchTemplates();
+    } catch (error: any) {
+      console.error('Duplicate error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to duplicate template",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -196,7 +244,7 @@ const EmailTemplatesSettings = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle>Email Templates</CardTitle>
               <CardDescription>
@@ -209,25 +257,16 @@ const EmailTemplatesSettings = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Variable reference */}
-          <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Info className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Available Variables</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {availableVariables.map((v) => (
-                <Tooltip key={v.variable}>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="cursor-help">
-                      {v.variable}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>{v.description}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
+        <CardContent className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search templates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
           </div>
 
           <Table>
@@ -237,14 +276,14 @@ const EmailTemplatesSettings = () => {
                 <TableHead>Name</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead className="w-[140px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedTemplates.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    No email templates yet. Create your first template to get started.
+                    {searchQuery ? "No templates match your search." : "No email templates yet. Create your first template to get started."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -270,6 +309,20 @@ const EmailTemplatesSettings = () => {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Preview</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDuplicate(template)}
+                              disabled={saving}
+                              aria-label={`Duplicate ${template.name} template`}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Duplicate</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -309,12 +362,12 @@ const EmailTemplatesSettings = () => {
           </Table>
 
           {/* Pagination */}
-          {templates.length > ITEMS_PER_PAGE && (
+          {filteredTemplates.length > ITEMS_PER_PAGE && (
             <TablePagination
               currentPage={currentPage}
               totalPages={totalPages}
               itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={templates.length}
+              totalItems={filteredTemplates.length}
               onPageChange={setCurrentPage}
               entityName="templates"
             />
@@ -360,6 +413,20 @@ const EmailTemplatesSettings = () => {
                 onChange={(value) => setFormData(prev => ({ ...prev, body: value }))}
                 placeholder="Write your email content here. Use variables like {{contact_name}} for personalization."
               />
+              {/* Variable helper in modal */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <span className="text-xs text-muted-foreground">Insert variable:</span>
+                {availableVariables.map((v) => (
+                  <Badge 
+                    key={v.variable} 
+                    variant="outline" 
+                    className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs"
+                    onClick={() => setFormData(prev => ({ ...prev, body: prev.body + v.variable }))}
+                  >
+                    {v.variable}
+                  </Badge>
+                ))}
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">

@@ -238,7 +238,7 @@ export class DealsCSVProcessor {
       modified_by: userId
     };
 
-    // Map CSV fields to database fields (excluding user fields)
+    // Map CSV fields to database fields (excluding user fields) - Added account_id, contact_id
     const fieldMapping: Record<string, string> = {
       'deal_name': 'deal_name',
       'stage': 'stage',
@@ -279,7 +279,9 @@ export class DealsCSVProcessor {
       'handoff_status': 'handoff_status',
       'rfq_received_date': 'rfq_received_date',
       'proposal_due_date': 'proposal_due_date',
-      'rfq_status': 'rfq_status'
+      'rfq_status': 'rfq_status',
+      'account_id': 'account_id',
+      'contact_id': 'contact_id'
     };
 
     Object.entries(fieldMapping).forEach(([csvField, dbField]) => {
