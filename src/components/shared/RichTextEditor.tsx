@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface RichTextEditorProps {
@@ -10,6 +10,7 @@ interface RichTextEditorProps {
 
 const modules = {
   toolbar: [
+    [{ 'font': ['', 'arial', 'times-new-roman', 'georgia', 'verdana', 'courier-new', 'trebuchet-ms'] }],
     [{ 'header': [1, 2, 3, false] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{ 'color': [] }, { 'background': [] }],
@@ -21,6 +22,7 @@ const modules = {
 };
 
 const formats = [
+  'font',
   'header',
   'bold', 'italic', 'underline', 'strike',
   'color', 'background',
@@ -38,7 +40,14 @@ export const RichTextEditor = ({ value, onChange, placeholder, className }: Rich
     const loadQuill = async () => {
       try {
         const ReactQuill = (await import('react-quill')).default;
+        const Quill = (await import('quill')).default;
         await import('react-quill/dist/quill.snow.css');
+        
+        // Register custom fonts
+        const Font = Quill.import('formats/font') as any;
+        Font.whitelist = ['arial', 'times-new-roman', 'georgia', 'verdana', 'courier-new', 'trebuchet-ms'];
+        Quill.register(Font, true);
+        
         setQuillComponent(() => ReactQuill);
         setIsLoaded(true);
       } catch (error) {
