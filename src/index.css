@@ -417,6 +417,62 @@ All colors MUST be HSL.
   .rich-text-editor .ql-editor.ql-blank::before {
     @apply text-muted-foreground;
   }
+  
+  /* Rich text editor font options */
+  .rich-text-editor .ql-font-arial {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .rich-text-editor .ql-font-times-new-roman {
+    font-family: 'Times New Roman', Times, serif;
+  }
+  .rich-text-editor .ql-font-georgia {
+    font-family: Georgia, serif;
+  }
+  .rich-text-editor .ql-font-verdana {
+    font-family: Verdana, Geneva, sans-serif;
+  }
+  .rich-text-editor .ql-font-courier-new {
+    font-family: 'Courier New', Courier, monospace;
+  }
+  .rich-text-editor .ql-font-trebuchet-ms {
+    font-family: 'Trebuchet MS', sans-serif;
+  }
+
+  /* Font picker dropdown labels */
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item::before {
+    content: 'Font';
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
+    content: 'Arial';
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="times-new-roman"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="times-new-roman"]::before {
+    content: 'Times New Roman';
+    font-family: 'Times New Roman', Times, serif;
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+    content: 'Georgia';
+    font-family: Georgia, serif;
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="verdana"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="verdana"]::before {
+    content: 'Verdana';
+    font-family: Verdana, Geneva, sans-serif;
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="courier-new"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="courier-new"]::before {
+    content: 'Courier New';
+    font-family: 'Courier New', Courier, monospace;
+  }
+  .rich-text-editor .ql-picker.ql-font .ql-picker-label[data-value="trebuchet-ms"]::before,
+  .rich-text-editor .ql-picker.ql-font .ql-picker-item[data-value="trebuchet-ms"]::before {
+    content: 'Trebuchet MS';
+    font-family: 'Trebuchet MS', sans-serif;
+  }
 }
 
 /* Smooth Dialog Animations with cubic-bezier easing */

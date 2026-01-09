@@ -62,6 +62,40 @@ async function getAccessToken(): Promise<string> {
   return data.access_token as string;
 }
 
+// Wrap email content with proper inline styles for consistent rendering across email clients
+function wrapEmailContent(htmlBody: string): string {
+  // Replace common HTML tags with inline-styled versions to fix spacing issues
+  const styledBody = htmlBody
+    .replace(/<p>/gi, '<p style="margin: 0 0 10px 0; padding: 0; line-height: 1.5;">')
+    .replace(/<ul>/gi, '<ul style="margin: 0 0 10px 0; padding-left: 20px;">')
+    .replace(/<ol>/gi, '<ol style="margin: 0 0 10px 0; padding-left: 20px;">')
+    .replace(/<li>/gi, '<li style="margin: 0 0 5px 0;">')
+    .replace(/<h1>/gi, '<h1 style="margin: 0 0 15px 0; padding: 0; font-size: 24px; font-weight: bold;">')
+    .replace(/<h2>/gi, '<h2 style="margin: 0 0 12px 0; padding: 0; font-size: 20px; font-weight: bold;">')
+    .replace(/<h3>/gi, '<h3 style="margin: 0 0 10px 0; padding: 0; font-size: 16px; font-weight: bold;">')
+    .replace(/<br\s*\/?>/gi, '<br>')
+    // Handle Quill's font classes - convert to inline styles
+    .replace(/class="ql-font-arial"/gi, 'style="font-family: Arial, Helvetica, sans-serif;"')
+    .replace(/class="ql-font-times-new-roman"/gi, 'style="font-family: Times New Roman, Times, serif;"')
+    .replace(/class="ql-font-georgia"/gi, 'style="font-family: Georgia, serif;"')
+    .replace(/class="ql-font-verdana"/gi, 'style="font-family: Verdana, Geneva, sans-serif;"')
+    .replace(/class="ql-font-courier-new"/gi, 'style="font-family: Courier New, Courier, monospace;"')
+    .replace(/class="ql-font-trebuchet-ms"/gi, 'style="font-family: Trebuchet MS, sans-serif;"');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 20px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #333333; background-color: #ffffff;">
+  <div style="max-width: 600px; margin: 0 auto;">
+    ${styledBody}
+  </div>
+</body>
+</html>`;
+}
+
 // Rewrite links in HTML body for click tracking
 function rewriteLinksForTracking(htmlBody: string, emailHistoryId: string, supabaseUrl: string): string {
   const clickTrackingBaseUrl = `${supabaseUrl}/functions/v1/track-email-click`;
@@ -102,8 +136,11 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const trackingPixelUrl = `${supabaseUrl}/functions/v1/track-email-open?id=${emailHistoryId}`;
   
+  // First wrap the content with proper inline styles for email clients
+  const wrappedBody = wrapEmailContent(emailRequest.body);
+  
   // Rewrite links for click tracking
-  const bodyWithClickTracking = rewriteLinksForTracking(emailRequest.body, emailHistoryId, supabaseUrl);
+  const bodyWithClickTracking = rewriteLinksForTracking(wrappedBody, emailHistoryId, supabaseUrl);
   
   // Embed tracking pixel in email body (append to HTML content)
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
