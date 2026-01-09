@@ -13,6 +13,7 @@ import PageAccessGuard from "@/components/PageAccessGuard";
 import { useState, lazy, Suspense, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { RealtimeSync } from "@/components/RealtimeSync";
 
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -31,14 +32,14 @@ const StickyHeaderTest = lazy(() => import("./pages/StickyHeaderTest"));
 // Build version for cache busting on deployments
 const CACHE_BUSTER = 'v1.0.0';
 
-// QueryClient with optimized defaults to reduce refetching
+// QueryClient with optimized defaults - now with realtime sync
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
       gcTime: 24 * 60 * 60 * 1000, // 24 hours cache
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnWindowFocus: true, // Refetch when user returns to tab (only if stale)
+      refetchOnMount: true, // Refetch on navigation (only if stale)
       retry: 1,
     },
   },
@@ -182,8 +183,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   // Use FixedSidebarLayout for all protected routes with Page Access Guard
   // Suspense is inside layout so sidebar stays visible while content loads
+  // RealtimeSync enables live updates across all users
   return (
     <FixedSidebarLayout>
+      <RealtimeSync />
       <PageAccessGuard>
         <Suspense fallback={<ContentLoader />}>
           {children}
