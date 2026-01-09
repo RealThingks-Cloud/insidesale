@@ -51,21 +51,6 @@ const contactSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  website: z.string()
-    .refine((val) => {
-      if (!val) return true;
-      const normalized = normalizeUrl(val);
-      try {
-        new URL(normalized);
-        return true;
-      } catch {
-        return false;
-      }
-    }, {
-      message: "Please enter a valid website URL (e.g., company.com or https://company.com)",
-    })
-    .optional()
-    .or(z.literal("")),
   contact_source: z.string().optional(),
   description: z.string().max(1000, "Description must be less than 1000 characters").optional(),
 });
@@ -81,10 +66,7 @@ interface Contact {
   email?: string;
   phone_no?: string;
   linkedin?: string;
-  website?: string;
   contact_source?: string;
-  industry?: string;
-  region?: string;
   description?: string;
   tags?: string[];
 }
@@ -274,7 +256,6 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
         email: data.email || null,
         phone_no: data.phone_no || null,
         linkedin: data.linkedin ? normalizeUrl(data.linkedin) : null,
-        website: data.website ? normalizeUrl(data.website) : null,
         contact_source: data.contact_source || null,
         description: data.description || null,
         tags: selectedTags,

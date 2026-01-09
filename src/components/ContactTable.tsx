@@ -48,17 +48,14 @@ interface Contact {
   email?: string;
   phone_no?: string;
   mobile_no?: string;
-  region?: string;
   city?: string;
   state?: string;
   contact_owner?: string;
   created_time?: string;
   modified_time?: string;
   lead_status?: string;
-  industry?: string;
   contact_source?: string;
   linkedin?: string;
-  website?: string;
   description?: string;
   annual_revenue?: number;
   no_of_employees?: number;
@@ -297,9 +294,6 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
       contact.email?.toLowerCase().includes(searchLower) ||
       contact.phone_no?.toLowerCase().includes(searchLower) ||
       contact.linkedin?.toLowerCase().includes(searchLower) ||
-      contact.website?.toLowerCase().includes(searchLower) ||
-      contact.industry?.toLowerCase().includes(searchLower) ||
-      contact.region?.toLowerCase().includes(searchLower) ||
       contact.description?.toLowerCase().includes(searchLower) ||
       contact.position?.toLowerCase().includes(searchLower) ||
       contact.tags?.some(tag => tag.toLowerCase().includes(searchLower))
@@ -764,12 +758,6 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                         ) : column.field === 'last_contacted_at' ? (
                           contact.last_contacted_at ? (
                             <span className="text-sm">{formatDateTimeStandard(contact.last_contacted_at)}</span>
-                          ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
-                          )
-                        ) : column.field === 'industry' ? (
-                          contact.industry ? (
-                            <HighlightedText text={contact.industry} highlight={debouncedSearchTerm} />
                           ) : (
                             <span className="text-center text-muted-foreground w-full block">-</span>
                           )
