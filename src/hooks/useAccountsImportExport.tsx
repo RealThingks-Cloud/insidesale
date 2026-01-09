@@ -118,7 +118,8 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
           notes: record.notes || null,
           industry: record.industry || null,
           phone: record.phone || null,
-          created_by: UserNameUtils.resolveUserId(record.created_by, userIdMap, user.id),
+          // For updates, preserve original created_by; for inserts, use current user (RLS requirement)
+          original_created_by: UserNameUtils.resolveUserId(record.created_by, userIdMap, user.id),
           account_owner: UserNameUtils.resolveUserId(record.account_owner, userIdMap, user.id),
           modified_by: user.id,
         });
@@ -131,9 +132,10 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
       // Upsert by id or company_name
       let successCount = 0;
       let updateCount = 0;
+      const insertErrors: string[] = [];
 
       for (const record of records) {
-        const { id, ...recordWithoutId } = record;
+        const { id, original_created_by, ...recordWithoutId } = record;
 
         // If id is provided, try to update by id first
         if (id) {
@@ -144,12 +146,16 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
             .maybeSingle();
 
           if (existingById) {
-            const { error } = await supabase
+            const { error: updateError } = await supabase
               .from('accounts')
-              .update({ ...recordWithoutId, updated_at: new Date().toISOString() })
+              .update({ ...recordWithoutId, created_by: original_created_by, updated_at: new Date().toISOString() })
               .eq('id', id);
             
-            if (!error) updateCount++;
+            if (updateError) {
+              insertErrors.push(`Update failed for "${record.company_name}": ${updateError.message}`);
+            } else {
+              updateCount++;
+            }
             continue;
           }
         }
@@ -162,24 +168,49 @@ export const useAccountsImportExport = (onImportComplete: () => void) => {
           .maybeSingle();
 
         if (existing) {
-          const { error } = await supabase
+          const { error: updateError } = await supabase
             .from('accounts')
-            .update({ ...recordWithoutId, updated_at: new Date().toISOString() })
+            .update({ ...recordWithoutId, created_by: original_created_by, updated_at: new Date().toISOString() })
             .eq('id', existing.id);
           
-          if (!error) updateCount++;
+          if (updateError) {
+            insertErrors.push(`Update failed for "${record.company_name}": ${updateError.message}`);
+          } else {
+            updateCount++;
+          }
         } else {
-          const { error } = await supabase
-            .from('accounts')
-            .insert(recordWithoutId);
+          // For new inserts, MUST use current user as created_by (RLS requirement)
+          const insertData = {
+            ...recordWithoutId,
+            created_by: user.id, // RLS requires created_by = auth.uid()
+          };
           
-          if (!error) successCount++;
+          const { error: insertError } = await supabase
+            .from('accounts')
+            .insert(insertData);
+          
+          if (insertError) {
+            insertErrors.push(`Insert failed for "${record.company_name}": ${insertError.message}`);
+          } else {
+            successCount++;
+          }
         }
       }
 
+      // Combine row-level errors with insert/update errors
+      const allErrors = [...errors, ...insertErrors];
+      
+      if (allErrors.length > 0) {
+        console.error('Import errors:', allErrors);
+      }
+
+      const successMessage = `Created ${successCount} new accounts, updated ${updateCount} existing accounts`;
+      const errorMessage = allErrors.length > 0 ? `. ${allErrors.length} rows failed.` : '';
+
       toast({
-        title: "Import Successful",
-        description: `Created ${successCount} new accounts, updated ${updateCount} existing accounts${errors.length > 0 ? `. ${errors.length} rows had errors.` : ''}`,
+        title: allErrors.length > 0 ? "Import Completed with Errors" : "Import Successful",
+        description: successMessage + errorMessage,
+        variant: allErrors.length > 0 ? "destructive" : "default",
       });
 
       onImportComplete();
