@@ -75,6 +75,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Helper to parse user agent
+  const parseUserAgent = (ua: string) => {
+    let browser = 'Unknown', os = 'Unknown';
+    if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+    else if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+    else if (ua.includes('Edg')) browser = 'Edge';
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Mac')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+    return { browser, os };
+  };
+
+  // Track session in database
+  const trackSession = async (session: Session | null) => {
+    if (!session?.user?.id) return;
+    const token = session.access_token.substring(0, 20);
+    const userAgent = navigator.userAgent;
+    const deviceInfo = parseUserAgent(userAgent);
+    
+    try {
+      const { data: existing } = await supabase
+        .from('user_sessions')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .eq('session_token', token)
+        .single();
+      
+      if (existing) {
+        await supabase.from('user_sessions')
+          .update({ last_active_at: new Date().toISOString(), is_active: true })
+          .eq('id', existing.id);
+      } else {
+        await supabase.from('user_sessions').insert({
+          user_id: session.user.id,
+          session_token: token,
+          user_agent: userAgent,
+          device_info: deviceInfo,
+          last_active_at: new Date().toISOString(),
+          is_active: true
+        });
+      }
+    } catch (error) {
+      console.error('Error tracking session:', error);
+    }
+  };
+
+  // Deactivate session on logout
+  const deactivateSession = async (session: Session | null) => {
+    if (!session?.user?.id) return;
+    const token = session.access_token.substring(0, 20);
+    try {
+      await supabase.from('user_sessions')
+        .update({ is_active: false })
+        .eq('user_id', session.user.id)
+        .eq('session_token', token);
+    } catch (error) {
+      console.error('Error deactivating session:', error);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     let sessionFetched = false;
@@ -86,7 +149,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         console.log('Auth state change:', event, session?.user?.email);
         
-        // Safari-compatible session handling
         if (session) {
           setSession(session);
           setUser(session.user);
@@ -97,23 +159,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         if (event === 'SIGNED_OUT') {
           cleanupAuthState();
-          // Use replace instead of href for Safari compatibility
           if (window.location.pathname !== '/auth') {
             window.location.replace('/auth');
           }
         }
         
         if (event === 'SIGNED_IN' && session) {
-          // Ensure we're on the right page after successful login
+          // Track session after sign in
+          setTimeout(() => trackSession(session), 0);
           if (window.location.pathname === '/auth') {
             window.location.replace('/');
           }
         }
         
         if (event === 'TOKEN_REFRESHED' && session) {
-          // Update user data when token is refreshed (role changes, etc.)
           setSession(session);
           setUser(session.user);
+          // Update last active time
+          setTimeout(() => trackSession(session), 0);
         }
         
         setLoading(false);
@@ -138,6 +201,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (session && !sessionFetched) {
           setSession(session);
           setUser(session.user);
+          // Track initial session
+          setTimeout(() => trackSession(session), 0);
         } else if (!session) {
           setSession(null);
           setUser(null);
@@ -160,24 +225,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []); // Empty dependency array to prevent re-running
+  }, []);
 
   const signOut = async () => {
     try {
-      // Clean up auth state first
+      // Deactivate session before sign out
+      await deactivateSession(session);
       cleanupAuthState();
-      
-      // Safari-compatible sign out
       const { error } = await supabase.auth.signOut({ scope: 'global' });
-      if (error) {
-        console.warn('Sign out error:', error);
-      }
-      
-      // Force redirect using replace for Safari
+      if (error) console.warn('Sign out error:', error);
       window.location.replace('/auth');
     } catch (error) {
       console.error('Error signing out:', error);
-      // Force redirect even if sign out fails
       window.location.replace('/auth');
     }
   };

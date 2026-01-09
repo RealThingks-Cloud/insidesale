@@ -174,18 +174,13 @@ export function AppSidebar({ isFixed = false, isOpen, onToggle }: AppSidebarProp
                 <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                   <item.icon className="w-5 h-5" />
                 </div>
-                <div 
-                  className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+                <span 
+                  className={`text-[13px] font-normal transition-all duration-300 overflow-hidden whitespace-nowrap ${
                     sidebarOpen ? 'opacity-100 w-auto ml-0' : 'opacity-0 w-0 ml-0'
                   }`}
-                  style={{ 
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
                 >
                   {item.title}
-                </div>
+                </span>
               </NavLink>
             );
 
@@ -228,17 +223,13 @@ export function AppSidebar({ isFixed = false, isOpen, onToggle }: AppSidebarProp
                 <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                   <Bell className="w-5 h-5" />
                 </div>
-                <div 
-                  className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+                <span 
+                  className={`text-[13px] font-normal transition-all duration-300 overflow-hidden whitespace-nowrap ${
                     sidebarOpen ? 'opacity-100 w-auto ml-0' : 'opacity-0 w-0 ml-0'
                   }`}
-                  style={{ 
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: '14px'
-                  }}
                 >
                   Notifications
-                </div>
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side={sidebarOpen ? "bottom" : "right"}>
@@ -259,17 +250,13 @@ export function AppSidebar({ isFixed = false, isOpen, onToggle }: AppSidebarProp
                 <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                   {sidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                 </div>
-                <div 
-                  className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+                <span 
+                  className={`text-[13px] font-normal transition-all duration-300 overflow-hidden whitespace-nowrap ${
                     sidebarOpen ? 'opacity-100 w-auto ml-0' : 'opacity-0 w-0 ml-0'
                   }`}
-                  style={{ 
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: '14px'
-                  }}
                 >
                   {sidebarOpen ? 'Collapse' : 'Expand'}
-                </div>
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side={sidebarOpen ? "bottom" : "right"}>
@@ -289,17 +276,13 @@ export function AppSidebar({ isFixed = false, isOpen, onToggle }: AppSidebarProp
                 <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                   <LogOut className="w-5 h-5" />
                 </div>
-                <div 
-                  className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+                <span 
+                  className={`text-[13px] font-normal transition-all duration-300 overflow-hidden whitespace-nowrap ${
                     sidebarOpen ? 'opacity-100 w-auto ml-0' : 'opacity-0 w-0 ml-0'
                   }`}
-                  style={{ 
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: '14px'
-                  }}
                 >
                   {getUserDisplayName()}
-                </div>
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side={sidebarOpen ? "bottom" : "right"}>
