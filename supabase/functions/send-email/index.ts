@@ -62,36 +62,56 @@ async function getAccessToken(): Promise<string> {
   return data.access_token as string;
 }
 
-// Wrap email content with proper inline styles for consistent rendering across email clients
+// Wrap email content with proper inline styles to match Outlook formatting
 function wrapEmailContent(htmlBody: string): string {
-  // Replace common HTML tags with inline-styled versions to fix spacing issues
+  // Process HTML to match Outlook formatting exactly
   const styledBody = htmlBody
-    .replace(/<p>/gi, '<p style="margin: 0 0 10px 0; padding: 0; line-height: 1.5;">')
-    .replace(/<ul>/gi, '<ul style="margin: 0 0 10px 0; padding-left: 20px;">')
-    .replace(/<ol>/gi, '<ol style="margin: 0 0 10px 0; padding-left: 20px;">')
-    .replace(/<li>/gi, '<li style="margin: 0 0 5px 0;">')
-    .replace(/<h1>/gi, '<h1 style="margin: 0 0 15px 0; padding: 0; font-size: 24px; font-weight: bold;">')
-    .replace(/<h2>/gi, '<h2 style="margin: 0 0 12px 0; padding: 0; font-size: 20px; font-weight: bold;">')
-    .replace(/<h3>/gi, '<h3 style="margin: 0 0 10px 0; padding: 0; font-size: 16px; font-weight: bold;">')
+    // Handle paragraphs with existing styles - merge styles
+    .replace(/<p\s+style="([^"]*)"/gi, (match, existingStyle) => {
+      return `<p style="margin: 0 0 8px 0; padding: 0; line-height: 1.4; ${existingStyle}"`;
+    })
+    // Handle paragraphs without styles
+    .replace(/<p>/gi, '<p style="margin: 0 0 8px 0; padding: 0; line-height: 1.4;">')
+    
+    // Handle empty paragraphs (line breaks in Quill) - minimize spacing
+    .replace(/<p style="[^"]*"><br><\/p>/gi, '<p style="margin: 0; padding: 0; line-height: 0.5;"><br></p>')
+    
+    // Lists: Convert to divs with indentation (no visible bullets like Outlook)
+    .replace(/<ul[^>]*>/gi, '<div style="margin: 0 0 8px 0; padding: 0;">')
+    .replace(/<\/ul>/gi, '</div>')
+    .replace(/<ol[^>]*>/gi, '<div style="margin: 0 0 8px 0; padding: 0;">')
+    .replace(/<\/ol>/gi, '</div>')
+    .replace(/<li>/gi, '<div style="margin: 0 0 2px 0; padding-left: 20px; line-height: 1.4;">')
+    .replace(/<\/li>/gi, '</div>')
+    
+    // Headers: compact spacing, smaller sizes
+    .replace(/<h1>/gi, '<h1 style="margin: 0 0 10px 0; padding: 0; font-size: 18px; font-weight: bold; line-height: 1.3;">')
+    .replace(/<h2>/gi, '<h2 style="margin: 0 0 8px 0; padding: 0; font-size: 16px; font-weight: bold; line-height: 1.3;">')
+    .replace(/<h3>/gi, '<h3 style="margin: 0 0 6px 0; padding: 0; font-size: 14px; font-weight: bold; line-height: 1.3;">')
+    
+    // Clean br tags
     .replace(/<br\s*\/?>/gi, '<br>')
+    
     // Handle Quill's font classes - convert to inline styles
     .replace(/class="ql-font-arial"/gi, 'style="font-family: Arial, Helvetica, sans-serif;"')
-    .replace(/class="ql-font-times-new-roman"/gi, 'style="font-family: Times New Roman, Times, serif;"')
+    .replace(/class="ql-font-times-new-roman"/gi, 'style="font-family: \'Times New Roman\', Times, serif;"')
     .replace(/class="ql-font-georgia"/gi, 'style="font-family: Georgia, serif;"')
     .replace(/class="ql-font-verdana"/gi, 'style="font-family: Verdana, Geneva, sans-serif;"')
-    .replace(/class="ql-font-courier-new"/gi, 'style="font-family: Courier New, Courier, monospace;"')
-    .replace(/class="ql-font-trebuchet-ms"/gi, 'style="font-family: Trebuchet MS, sans-serif;"');
+    .replace(/class="ql-font-courier-new"/gi, 'style="font-family: \'Courier New\', Courier, monospace;"')
+    .replace(/class="ql-font-trebuchet-ms"/gi, 'style="font-family: \'Trebuchet MS\', sans-serif;"')
+    
+    // Remove any remaining Quill-specific classes
+    .replace(/class="ql-[^"]*"/gi, '');
 
+  // Wrap in minimal email template - NO centering, Outlook-like defaults (Calibri 11pt)
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 20px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #333333; background-color: #ffffff;">
-  <div style="max-width: 600px; margin: 0 auto;">
-    ${styledBody}
-  </div>
+<body style="margin: 0; padding: 15px; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.4; color: #000000; background-color: #ffffff;">
+${styledBody}
 </body>
 </html>`;
 }
