@@ -3,14 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Clock, Building2, Users, UserCheck, Mail, Smartphone } from 'lucide-react';
+import { Bell, Clock, Building2, Users, UserCheck, Mail } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface NotificationPrefs {
   email_notifications: boolean;
   in_app_notifications: boolean;
-  push_notifications: boolean;
   lead_assigned: boolean;
   deal_updates: boolean;
   task_reminders: boolean;
@@ -71,7 +70,6 @@ const NotificationsSection = ({ notificationPrefs, setNotificationPrefs, userId 
   const deliveryMethods = [
     { key: 'email_notifications' as const, label: 'Email', icon: Mail },
     { key: 'in_app_notifications' as const, label: 'In-App', icon: Bell },
-    { key: 'push_notifications' as const, label: 'Push', icon: Smartphone },
   ];
 
   const eventTriggers = [

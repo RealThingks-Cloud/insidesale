@@ -2298,6 +2298,7 @@ export type Database = {
       is_current_user_admin: { Args: never; Returns: boolean }
       is_current_user_admin_by_metadata: { Args: never; Returns: boolean }
       is_user_admin: { Args: { user_id?: string }; Returns: boolean }
+      is_user_manager: { Args: { user_id?: string }; Returns: boolean }
       log_data_access: {
         Args: {
           p_operation: string

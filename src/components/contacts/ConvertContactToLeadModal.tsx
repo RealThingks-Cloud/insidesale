@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -60,19 +60,7 @@ export const ConvertContactToLeadModal = ({
   const [duplicateLeads, setDuplicateLeads] = useState<ExistingLead[]>([]);
   const [confirmCreateAnyway, setConfirmCreateAnyway] = useState(false);
 
-  // Check for existing conversions and duplicates when modal opens
-  useEffect(() => {
-    if (open && contact) {
-      checkForDuplicates();
-    } else {
-      // Reset state when modal closes
-      setAlreadyConverted(null);
-      setDuplicateLeads([]);
-      setConfirmCreateAnyway(false);
-    }
-  }, [open, contact]);
-
-  const checkForDuplicates = async () => {
+  const checkForDuplicates = useCallback(async () => {
     if (!contact) return;
 
     setIsChecking(true);
@@ -137,7 +125,19 @@ export const ConvertContactToLeadModal = ({
     } finally {
       setIsChecking(false);
     }
-  };
+  }, [contact]);
+
+  // Check for existing conversions and duplicates when modal opens
+  useEffect(() => {
+    if (open && contact) {
+      checkForDuplicates();
+    } else {
+      // Reset state when modal closes
+      setAlreadyConverted(null);
+      setDuplicateLeads([]);
+      setConfirmCreateAnyway(false);
+    }
+  }, [open, contact, checkForDuplicates]);
 
   const handleConvert = async () => {
     if (!contact) return;

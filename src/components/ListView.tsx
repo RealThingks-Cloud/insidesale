@@ -61,8 +61,8 @@ export const ListView = ({
     searchTerm: "",
     probabilityRange: [0, 100],
   }));
-  const [sortBy, setSortBy] = useState<string>("modified_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortBy, setSortBy] = useState<string>("deal_name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);

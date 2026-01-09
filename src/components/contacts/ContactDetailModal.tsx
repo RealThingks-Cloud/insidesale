@@ -410,7 +410,7 @@ export const ContactDetailModal = ({
               <div className="space-y-4">
                 {/* Compact Email Engagement Stats with Send Button */}
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <ContactEmailTracking emailOpens={contact.email_opens || 0} emailClicks={contact.email_clicks || 0} />
+                  <ContactEmailTracking emailOpens={contact.email_opens || 0} />
                   <Button size="sm" onClick={() => setShowEmailModal(true)} disabled={!contact.email} title={!contact.email ? "No email address available" : "Send email to contact"}>
                     <Send className="h-4 w-4 mr-1" />
                     Send Email

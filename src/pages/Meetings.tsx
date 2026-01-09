@@ -76,7 +76,7 @@ const Meetings = () => {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [organizerFilter, setOrganizerFilter] = useState<string>("all");
-  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('subject');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   

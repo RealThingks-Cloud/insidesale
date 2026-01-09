@@ -682,11 +682,9 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
       const emails = data || [];
       const sent = emails.length;
       const opened = emails.filter(e => (e.open_count || 0) > 0).length;
-      const clicked = emails.filter(e => (e.click_count || 0) > 0).length;
       const openRate = sent > 0 ? Math.round((opened / sent) * 100) : 0;
-      const clickRate = sent > 0 ? Math.round((clicked / sent) * 100) : 0;
       const recentEmail = emails[0];
-      return { sent, opened, clicked, openRate, clickRate, recentSubject: recentEmail?.subject || null };
+      return { sent, opened, openRate, recentSubject: recentEmail?.subject || null };
     },
     enabled: !!user?.id,
     ...QUERY_OPTIONS,
@@ -1594,14 +1592,9 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
                   <p className="text-base font-bold text-green-600 leading-tight">{emailStats?.opened || 0}</p>
                   <p className="text-[9px] text-muted-foreground leading-tight">Opened</p>
                 </div>
-                <div className="flex flex-col items-center justify-center">
-                  <p className="text-base font-bold text-blue-600 leading-tight">{emailStats?.clicked || 0}</p>
-                  <p className="text-[9px] text-muted-foreground leading-tight">Clicked</p>
-                </div>
               </div>
-              <div className="flex justify-between text-[9px] text-muted-foreground border-t pt-1.5">
+              <div className="flex justify-center text-[9px] text-muted-foreground border-t pt-1.5">
                 <span>Open Rate: <span className="font-medium text-foreground">{emailStats?.openRate || 0}%</span></span>
-                <span>Click Rate: <span className="font-medium text-foreground">{emailStats?.clickRate || 0}%</span></span>
               </div>
             </CardContent>
           </Card>

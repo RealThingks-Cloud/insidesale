@@ -19,14 +19,13 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { Mail, Eye, MousePointer, TrendingUp, Download } from 'lucide-react';
+import { Mail, Eye, TrendingUp, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface DailyStats {
   date: string;
   sent: number;
   opened: number;
-  clicked: number;
 }
 
 interface StatusDistribution {
@@ -42,9 +41,7 @@ export const EmailAnalyticsDashboard = () => {
   const [totals, setTotals] = useState({
     totalSent: 0,
     totalOpened: 0,
-    totalClicked: 0,
     openRate: 0,
-    clickRate: 0,
   });
 
   useEffect(() => {
@@ -72,14 +69,11 @@ export const EmailAnalyticsDashboard = () => {
         // Calculate totals
         const totalSent = emails?.length || 0;
         const totalOpened = emails?.filter(e => e.open_count && e.open_count > 0).length || 0;
-        const totalClicked = emails?.filter(e => e.click_count && e.click_count > 0).length || 0;
 
         setTotals({
           totalSent,
           totalOpened,
-          totalClicked,
           openRate: totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0,
-          clickRate: totalOpened > 0 ? Math.round((totalClicked / totalOpened) * 100) : 0,
         });
 
         // Calculate daily stats
@@ -94,7 +88,6 @@ export const EmailAnalyticsDashboard = () => {
             date: format(date, 'dd MMM'),
             sent: dayEmails.length,
             opened: dayEmails.filter(e => e.open_count && e.open_count > 0).length,
-            clicked: dayEmails.filter(e => e.click_count && e.click_count > 0).length,
           };
         });
 
@@ -127,7 +120,7 @@ export const EmailAnalyticsDashboard = () => {
   const getChartSummary = () => {
     const recentStats = dailyStats.slice(-7);
     const avgSent = recentStats.reduce((a, b) => a + b.sent, 0) / Math.max(recentStats.length, 1);
-    return `Email activity chart showing ${totals.totalSent} emails sent, ${totals.openRate}% open rate, ${totals.clickRate}% click rate over ${dateRange} days. Average ${avgSent.toFixed(1)} emails sent per day in the last week.`;
+    return `Email activity chart showing ${totals.totalSent} emails sent, ${totals.openRate}% open rate over ${dateRange} days. Average ${avgSent.toFixed(1)} emails sent per day in the last week.`;
   };
 
   if (loading) {
@@ -165,8 +158,8 @@ export const EmailAnalyticsDashboard = () => {
           <Button 
             variant="outline" 
             onClick={() => {
-              const headers = ["Date", "Sent", "Opened", "Clicked"];
-              const rows = dailyStats.map(stat => [stat.date, stat.sent, stat.opened, stat.clicked]);
+              const headers = ["Date", "Sent", "Opened"];
+              const rows = dailyStats.map(stat => [stat.date, stat.sent, stat.opened]);
               const csvContent = [
                 headers.join(","),
                 ...rows.map(row => row.join(","))
@@ -186,7 +179,7 @@ export const EmailAnalyticsDashboard = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -210,20 +203,6 @@ export const EmailAnalyticsDashboard = () => {
               <div>
                 <p className="text-2xl font-bold">{totals.openRate}%</p>
                 <p className="text-xs text-muted-foreground">Open Rate</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <MousePointer className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totals.clickRate}%</p>
-                <p className="text-xs text-muted-foreground">Click Rate</p>
               </div>
             </div>
           </CardContent>
@@ -295,14 +274,6 @@ export const EmailAnalyticsDashboard = () => {
                     dot={false}
                     name="Opened"
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="clicked" 
-                    stroke="#8b5cf6" 
-                    strokeWidth={2}
-                    dot={false}
-                    name="Clicked"
-                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -314,7 +285,6 @@ export const EmailAnalyticsDashboard = () => {
                   <th>Date</th>
                   <th>Sent</th>
                   <th>Opened</th>
-                  <th>Clicked</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,7 +293,6 @@ export const EmailAnalyticsDashboard = () => {
                     <td>{stat.date}</td>
                     <td>{stat.sent}</td>
                     <td>{stat.opened}</td>
-                    <td>{stat.clicked}</td>
                   </tr>
                 ))}
               </tbody>
@@ -399,7 +368,7 @@ export const EmailAnalyticsDashboard = () => {
             <div 
               className="h-[250px]"
               role="img"
-              aria-label="Daily engagement bar chart showing sent, opened, and clicked emails for the last 14 days"
+              aria-label="Daily engagement bar chart showing sent and opened emails for the last 14 days"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyStats.slice(-14)}>
@@ -425,7 +394,6 @@ export const EmailAnalyticsDashboard = () => {
                   <Legend />
                   <Bar dataKey="sent" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Sent" />
                   <Bar dataKey="opened" fill="#10b981" radius={[4, 4, 0, 0]} name="Opened" />
-                  <Bar dataKey="clicked" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Clicked" />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -115,13 +115,7 @@ export const MergeRecordsModal = ({
   const [fieldSelections, setFieldSelections] = useState<Record<string, "source" | "target">>({});
   const [fields, setFields] = useState<FieldConfig[]>([]);
 
-  useEffect(() => {
-    if (open && sourceId && targetId) {
-      fetchRecords();
-    }
-  }, [open, sourceId, targetId]);
-
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     setIsLoading(true);
     try {
       const [sourceRes, targetRes] = await Promise.all([
@@ -173,7 +167,13 @@ export const MergeRecordsModal = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [entityType, sourceId, targetId, toast, onOpenChange]);
+
+  useEffect(() => {
+    if (open && sourceId && targetId) {
+      fetchRecords();
+    }
+  }, [open, sourceId, targetId, fetchRecords]);
 
   const handleFieldSelection = (fieldKey: string, value: "source" | "target") => {
     setFieldSelections((prev) => ({ ...prev, [fieldKey]: value }));

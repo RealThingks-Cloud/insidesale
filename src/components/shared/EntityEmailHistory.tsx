@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Mail,
   Eye,
-  MousePointer,
   Clock,
   ExternalLink,
 } from 'lucide-react';
@@ -29,9 +28,7 @@ interface EmailHistoryItem {
   status: string;
   sent_at: string;
   opened_at: string | null;
-  clicked_at: string | null;
   open_count: number | null;
-  click_count: number | null;
 }
 
 interface EntityEmailHistoryProps {
@@ -50,7 +47,7 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
       try {
         let query = supabase
           .from('email_history')
-          .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, clicked_at, open_count, click_count')
+          .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, open_count')
           .order('sent_at', { ascending: false });
 
         // Apply filter based on entity type
@@ -82,7 +79,6 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     switch (status) {
       case 'sent': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'opened': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'clicked': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
       case 'bounced': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
@@ -132,10 +128,6 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
                         {email.open_count || 0} opens
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MousePointer className="h-3 w-3" />
-                        {email.click_count || 0} clicks
                       </span>
                     </div>
                   </div>
@@ -191,22 +183,13 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex justify-center">
                 <Card>
                   <CardContent className="p-4 flex items-center gap-3">
                     <Eye className="h-8 w-8 text-blue-500" />
                     <div>
                       <p className="text-2xl font-bold">{selectedEmail.open_count || 0}</p>
                       <p className="text-xs text-muted-foreground">Opens</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <MousePointer className="h-8 w-8 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{selectedEmail.click_count || 0}</p>
-                      <p className="text-xs text-muted-foreground">Clicks</p>
                     </div>
                   </CardContent>
                 </Card>

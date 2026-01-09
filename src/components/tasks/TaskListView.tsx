@@ -109,6 +109,8 @@ export const TaskListView = ({
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [sortField, setSortField] = useState<string>('title');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Internal selection state - used when no external selection is provided
   const [internalSelectedTasks, setInternalSelectedTasks] = useState<string[]>([]);
@@ -133,7 +135,7 @@ export const TaskListView = ({
   const { displayNames } = useUserDisplayNames(allUserIds);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    const filtered = tasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchTerm.toLowerCase());
       
@@ -153,7 +155,40 @@ export const TaskListView = ({
       const matchesAssignedTo = assignedToFilter === 'all' || task.assigned_to === assignedToFilter;
       return matchesSearch && matchesStatus && matchesPriority && matchesAssignedTo;
     });
-  }, [tasks, searchTerm, statusFilter, hideCompleted, priorityFilter, assignedToFilter]);
+
+    // Sort filtered tasks
+    return filtered.sort((a, b) => {
+      let aValue: string | number | null = null;
+      let bValue: string | number | null = null;
+
+      switch (sortField) {
+        case 'title':
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+          break;
+        case 'status':
+          aValue = a.status || '';
+          bValue = b.status || '';
+          break;
+        case 'priority':
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 99;
+          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 99;
+          break;
+        case 'due_date':
+          aValue = a.due_date || '';
+          bValue = b.due_date || '';
+          break;
+        default:
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [tasks, searchTerm, statusFilter, hideCompleted, priorityFilter, assignedToFilter, sortField, sortDirection]);
 
   // Reset to first page when filters change
   useEffect(() => {

@@ -141,8 +141,7 @@ export const EntityActivityTimeline = ({
           icon: <Send className="h-4 w-4" />,
           metadata: { 
             status: email.status, 
-            opens: String(email.open_count || 0),
-            clicks: String(email.click_count || 0)
+            opens: String(email.open_count || 0)
           }
         });
       });
@@ -270,9 +269,6 @@ export const EntityActivityTimeline = ({
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">
                           {item.metadata.opens} opens
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {item.metadata.clicks} clicks
                         </Badge>
                       </div>
                     )}

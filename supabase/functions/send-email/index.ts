@@ -150,31 +150,6 @@ function wrapEmailContent(htmlBody: string): string {
   return `<div style="font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.15; color: #000000;">${processed}</div>`;
 }
 
-// Rewrite links in HTML body for click tracking
-function rewriteLinksForTracking(htmlBody: string, emailHistoryId: string, supabaseUrl: string): string {
-  const clickTrackingBaseUrl = `${supabaseUrl}/functions/v1/track-email-click`;
-  
-  // Match href attributes in anchor tags
-  const linkRegex = /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi;
-  
-  return htmlBody.replace(linkRegex, (match, before, url, after) => {
-    // Skip tracking for mailto: links, tel: links, and anchor links
-    if (url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('#')) {
-      return match;
-    }
-    
-    // Skip if it's already a tracking URL
-    if (url.includes('track-email-click')) {
-      return match;
-    }
-    
-    const encodedUrl = encodeURIComponent(url);
-    const trackingUrl = `${clickTrackingBaseUrl}?id=${emailHistoryId}&url=${encodedUrl}`;
-    
-    return `<a ${before}href="${trackingUrl}"${after}>`;
-  });
-}
-
 async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailHistoryId: string): Promise<void> {
   const graphUrl = `https://graph.microsoft.com/v1.0/users/${emailRequest.from}/sendMail`;
 
@@ -186,21 +161,16 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     contentBytes: att.contentBytes,
   })) || [];
 
-  // Generate tracking pixel URL
+  // Generate tracking pixel URL for open tracking
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const trackingPixelUrl = `${supabaseUrl}/functions/v1/track-email-open?id=${emailHistoryId}`;
   
-  // First wrap the content with proper inline styles for email clients
+  // Wrap the content with proper inline styles for email clients
   const wrappedBody = wrapEmailContent(emailRequest.body);
-  
-  // Rewrite links for click tracking
-  const bodyWithClickTracking = rewriteLinksForTracking(wrappedBody, emailHistoryId, supabaseUrl);
   
   // Embed tracking pixel in email body (append to HTML content)
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
-  const bodyWithTracking = bodyWithClickTracking + trackingPixel;
-
-  console.log(`Rewritten ${(emailRequest.body.match(/<a\s+[^>]*href=/gi) || []).length} link(s) for click tracking`);
+  const bodyWithTracking = wrappedBody + trackingPixel;
 
   const emailPayload: any = {
     message: {
@@ -227,7 +197,7 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     console.log(`Adding ${attachments.length} attachment(s) to email`);
   }
 
-  console.log(`Sending email to ${emailRequest.to} with tracking pixel and click tracking...`);
+  console.log(`Sending email to ${emailRequest.to} with open tracking...`);
 
   const response = await fetch(graphUrl, {
     method: "POST",
@@ -244,7 +214,7 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     throw new Error(`Failed to send email: ${response.status} ${errorText}`);
   }
 
-  console.log("Email sent successfully with tracking pixel and click tracking embedded");
+  console.log("Email sent successfully with open tracking embedded");
 }
 
 const handler = async (req: Request): Promise<Response> => {
