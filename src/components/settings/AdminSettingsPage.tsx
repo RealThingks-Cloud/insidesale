@@ -1,9 +1,9 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
-import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, Palette, History } from 'lucide-react';
+import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, History } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUserRole } from '@/hooks/useUserRole';
-import { Loader2, ShieldAlert, Settings2, BarChart3 } from 'lucide-react';
+import { Loader2, ShieldAlert, BarChart3 } from 'lucide-react';
 import SettingsCard from './shared/SettingsCard';
 import SettingsLoadingSkeleton from './shared/SettingsLoadingSkeleton';
 
@@ -15,12 +15,10 @@ const AuditLogsSettings = lazy(() => import('@/components/settings/AuditLogsSett
 const SystemStatusSettings = lazy(() => import('@/components/settings/SystemStatusSettings'));
 const ScheduledReportsSettings = lazy(() => import('@/components/settings/ScheduledReportsSettings'));
 const AnnouncementSettings = lazy(() => import('@/components/settings/AnnouncementSettings'));
-const BrandingSettings = lazy(() => import('@/components/settings/BrandingSettings'));
 
 const adminTabs = [
   { id: 'users', label: 'Users', icon: Users },
   { id: 'access', label: 'Access', icon: Lock },
-  { id: 'config', label: 'Config', icon: Settings2 },
   { id: 'logs', label: 'Logs', icon: History },
   { id: 'system', label: 'System', icon: Activity },
   { id: 'reports', label: 'Reports', icon: BarChart3 }
@@ -38,7 +36,6 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
     const sectionToTab: Record<string, string> = {
       'users': 'users',
       'page-access': 'access',
-      'branding': 'config',
       'audit-logs': 'logs',
       'backup': 'system',
       'system-status': 'system',
@@ -86,7 +83,7 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
   return (
     <div className="space-y-6 max-w-6xl">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           {adminTabs.map(tab => {
             const Icon = tab.icon;
             return (
@@ -110,14 +107,6 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
           <SettingsCard icon={Lock} title="Page Access Control" description="Configure which roles can access each page">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
               <PageAccessSettings />
-            </Suspense>
-          </SettingsCard>
-        </TabsContent>
-
-        <TabsContent value="config" className="mt-6 space-y-6">
-          <SettingsCard icon={Palette} title="Branding Settings" description="Customize app logo, colors, and appearance">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <BrandingSettings />
             </Suspense>
           </SettingsCard>
         </TabsContent>
