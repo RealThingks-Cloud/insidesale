@@ -27,7 +27,7 @@ interface EmailTemplate {
   updated_at: string;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 10; // Email templates per page
 
 const EmailTemplatesSettings = () => {
   const { user } = useAuth();
