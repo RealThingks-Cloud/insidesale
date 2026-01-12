@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.process-bounce-checks]
 verify_jwt = false
+
+[functions.process-email-replies]
+verify_jwt = false
+
+[functions.backfill-message-ids]
+verify_jwt = false

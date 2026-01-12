@@ -35,7 +35,7 @@ export const BounceCheckWorker = () => {
     localStorage.setItem(LOCAL_STORAGE_KEY, Date.now().toString());
     
     try {
-      console.log('[BounceCheckWorker] Running background bounce check...');
+      console.log('[BounceCheckWorker] Running background checks...');
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -43,25 +43,39 @@ export const BounceCheckWorker = () => {
         return;
       }
       
-      const { data, error } = await supabase.functions.invoke('process-bounce-checks', {
+      // Check for bounces
+      const { data: bounceData, error: bounceError } = await supabase.functions.invoke('process-bounce-checks', {
         body: {},
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
       
-      if (error) {
-        console.warn('[BounceCheckWorker] Error:', error.message);
-        return;
+      if (bounceError) {
+        console.warn('[BounceCheckWorker] Bounce check error:', bounceError.message);
+      } else if (bounceData?.totalBouncesFound > 0) {
+        console.log(`[BounceCheckWorker] Found ${bounceData.totalBouncesFound} bounce(s)`);
       }
       
-      if (data?.totalBouncesFound > 0) {
-        console.log(`[BounceCheckWorker] Found ${data.totalBouncesFound} bounce(s)`);
-      } else {
-        console.log('[BounceCheckWorker] No new bounces detected');
+      // Check for email replies
+      const { data: replyData, error: replyError } = await supabase.functions.invoke('process-email-replies', {
+        body: {},
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (replyError) {
+        console.warn('[BounceCheckWorker] Reply check error:', replyError.message);
+      } else if (replyData?.repliesFound > 0) {
+        console.log(`[BounceCheckWorker] Found ${replyData.repliesFound} reply(s)`);
+      }
+      
+      if (!bounceData?.totalBouncesFound && !replyData?.repliesFound) {
+        console.log('[BounceCheckWorker] No new bounces or replies detected');
       }
     } catch (error) {
-      console.warn('[BounceCheckWorker] Failed to run bounce check:', error);
+      console.warn('[BounceCheckWorker] Failed to run checks:', error);
     } finally {
       isRunningRef.current = false;
     }

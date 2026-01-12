@@ -160,10 +160,10 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch email record
+    // Fetch email record with sender info
     const { data: emailData, error: fetchError } = await supabase
       .from("email_history")
-      .select("open_count, contact_id, lead_id, account_id, sent_at, first_open_ip, opened_at, status, bounce_type, unique_opens")
+      .select("open_count, contact_id, lead_id, account_id, sent_at, first_open_ip, opened_at, status, bounce_type, unique_opens, sent_by, recipient_email, recipient_name, subject, sender_email")
       .eq("id", emailId)
       .single();
 
@@ -245,8 +245,28 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Successfully tracked open for email ${emailId} - total: ${currentOpenCount + 1}, unique: ${isUniqueOpen ? currentUniqueOpens + 1 : currentUniqueOpens}`);
     }
 
-    // Update contact engagement score only on first valid unique open
+    // Update contact engagement score and create notification on first valid unique open
     if (isFirstOpen && emailData) {
+      // Create notification for email open
+      if (emailData.sent_by) {
+        const recipientDisplay = emailData.recipient_name || emailData.recipient_email;
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: emailData.sent_by,
+            message: `${recipientDisplay} opened your email: "${emailData.subject}"`,
+            notification_type: 'email_opened',
+            status: 'unread',
+            lead_id: emailData.lead_id,
+          });
+        
+        if (notifError) {
+          console.warn(`Failed to create open notification:`, notifError);
+        } else {
+          console.log(`Created email_opened notification for user ${emailData.sent_by}`);
+        }
+      }
+
       if (emailData.contact_id) {
         const { data: contact } = await supabase
           .from("contacts")

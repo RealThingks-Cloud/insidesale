@@ -412,7 +412,8 @@ export const useNotifications = () => {
 
           const newNotification = payload.new as Notification;
           const toastableTypes = [
-            'task_assigned', 'task_completed', 'task_updated', 'task_deleted'
+            'task_assigned', 'task_completed', 'task_updated', 'task_deleted',
+            'email_opened', 'email_replied', 'email_bounced'
           ];
           
           if (toastableTypes.includes(newNotification.notification_type)) {
@@ -421,12 +422,16 @@ export const useNotifications = () => {
               'task_completed': 'Task Completed',
               'task_updated': 'Task Updated',
               'task_deleted': 'Task Deleted',
+              'email_opened': 'Email Opened',
+              'email_replied': 'Email Reply Received',
+              'email_bounced': 'Email Delivery Failed',
             };
             
             toast({
               title: titles[newNotification.notification_type] || 'New Notification',
               description: newNotification.message,
               duration: 5000,
+              variant: newNotification.notification_type === 'email_bounced' ? 'destructive' : 'default',
             });
           }
         }

@@ -249,7 +249,8 @@ serve(async (req: Request) => {
         email_history:email_history_id (
           id,
           sent_at,
-          status
+          status,
+          sent_by
         )
       `)
       .eq('checked', false)
@@ -319,6 +320,36 @@ serve(async (req: Request) => {
           if (!error) {
             pendingBouncesFound++;
             bouncedPendingIds.push(check.id);
+            
+            // Create notification for bounce - check for duplicates first
+            if (emailHistory.sent_by) {
+              // Check if a similar notification already exists (prevent duplicates)
+              const { data: existingNotif } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('user_id', emailHistory.sent_by)
+                .eq('notification_type', 'email_bounced')
+                .ilike('message', `%${check.recipient_email}%`)
+                .gte('created_at', new Date(Date.now() - 60000).toISOString())
+                .maybeSingle();
+
+              if (!existingNotif) {
+                const { error: notifError } = await supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: emailHistory.sent_by,
+                    message: `Email to ${check.recipient_email} could not be delivered - address invalid or doesn't exist`,
+                    notification_type: 'email_bounced',
+                    status: 'unread',
+                  });
+                
+                if (notifError) {
+                  console.warn(`Failed to create bounce notification:`, notifError);
+                }
+              } else {
+                console.log(`Skipping duplicate bounce notification for ${check.recipient_email}`);
+              }
+            }
           }
           
           results.push({

@@ -28,6 +28,8 @@ import {
   ChevronDown,
   MailX,
   Info,
+  Reply,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -52,6 +54,21 @@ interface EmailHistoryItem {
   bounce_reason: string | null;
   bounced_at: string | null;
   is_valid_open: boolean | null;
+  reply_count: number | null;
+  replied_at: string | null;
+  last_reply_at: string | null;
+  lead_id?: string | null;
+  contact_id?: string | null;
+  account_id?: string | null;
+}
+
+interface EmailReply {
+  id: string;
+  from_email: string;
+  from_name: string | null;
+  received_at: string;
+  body_preview: string | null;
+  subject: string | null;
 }
 
 interface EntityEmailHistoryProps {
@@ -144,13 +161,15 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
   const [loading, setLoading] = useState(true);
   const [selectedEmail, setSelectedEmail] = useState<EmailHistoryItem | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+  const [replies, setReplies] = useState<EmailReply[]>([]);
+  const [loadingReplies, setLoadingReplies] = useState(false);
 
   const fetchEmails = async () => {
     setLoading(true);
     try {
       let query = supabase
         .from('email_history')
-        .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, open_count, unique_opens, bounce_type, bounce_reason, bounced_at, is_valid_open')
+        .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, open_count, unique_opens, bounce_type, bounce_reason, bounced_at, is_valid_open, reply_count, replied_at, last_reply_at, lead_id, contact_id, account_id')
         .order('sent_at', { ascending: false });
 
       if (entityType === 'contact') {
@@ -178,6 +197,73 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     }
   }, [entityType, entityId]);
 
+  // Real-time subscription for email status updates
+  useEffect(() => {
+    if (!entityId) return;
+
+    const channel = supabase
+      .channel(`email-updates-${entityType}-${entityId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'email_history',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newEmail = payload.new as EmailHistoryItem;
+            // Check if belongs to this entity
+            const belongsToEntity = 
+              (entityType === 'lead' && newEmail.lead_id === entityId) ||
+              (entityType === 'contact' && newEmail.contact_id === entityId) ||
+              (entityType === 'account' && newEmail.account_id === entityId);
+            
+            if (belongsToEntity) {
+              setEmails(prev => [newEmail, ...prev]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedEmail = payload.new as EmailHistoryItem;
+            setEmails(prev => prev.map(e => 
+              e.id === updatedEmail.id ? { ...e, ...updatedEmail } : e
+            ));
+            // Also update selectedEmail if it's the same
+            if (selectedEmail?.id === updatedEmail.id) {
+              setSelectedEmail(prev => prev ? { ...prev, ...updatedEmail } : null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [entityType, entityId, selectedEmail?.id]);
+
+  // Fetch replies when an email is selected
+  useEffect(() => {
+    if (selectedEmail && (selectedEmail.reply_count || 0) > 0) {
+      setLoadingReplies(true);
+      supabase
+        .from('email_replies')
+        .select('id, from_email, from_name, received_at, body_preview, subject')
+        .eq('email_history_id', selectedEmail.id)
+        .order('received_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('Error fetching replies:', error);
+            setReplies([]);
+          } else {
+            setReplies((data as EmailReply[]) || []);
+          }
+          setLoadingReplies(false);
+        });
+    } else {
+      setReplies([]);
+    }
+  }, [selectedEmail]);
+
   // Reset technical details view when dialog closes
   useEffect(() => {
     if (!selectedEmail) {
@@ -186,7 +272,20 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
   }, [selectedEmail]);
 
   const getStatusBadge = (email: EmailHistoryItem) => {
-    const { status, bounce_type } = email;
+    const { status, bounce_type, reply_count } = email;
+
+    // Show "Verifying..." for emails sent within the last 60 seconds
+    const sentAt = new Date(email.sent_at);
+    const isRecentlySent = Date.now() - sentAt.getTime() < 60000; // 60 seconds
+
+    if (status === 'sent' && isRecentlySent && !bounce_type) {
+      return (
+        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Verifying...
+        </Badge>
+      );
+    }
 
     if (status === 'bounced' || bounce_type) {
       const bounceInfo = getBounceExplanation(bounce_type, null);
@@ -194,6 +293,16 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
         <Badge className="bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20">
           <XCircle className="h-3 w-3 mr-1" />
           {bounceInfo.title}
+        </Badge>
+      );
+    }
+
+    // Show replied status if there are replies
+    if (status === 'replied' || (reply_count && reply_count > 0)) {
+      return (
+        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+          <Reply className="h-3 w-3 mr-1" />
+          Replied {reply_count && reply_count > 1 ? `(${reply_count})` : ''}
         </Badge>
       );
     }
@@ -344,6 +453,13 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                         {format(new Date(email.sent_at), 'dd/MM/yyyy HH:mm')}
                       </span>
                       {getOpenCountDisplay(email)}
+                      {/* Reply count indicator */}
+                      {email.reply_count && email.reply_count > 0 && (
+                        <span className="flex items-center gap-1 text-purple-600">
+                          <Reply className="h-3 w-3" />
+                          {email.reply_count} {email.reply_count === 1 ? 'reply' : 'replies'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {getStatusBadge(email)}
@@ -482,20 +598,58 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                     <CardContent className="p-4 flex items-center gap-3">
                       <Eye className="h-8 w-8 text-blue-500" />
                       <div>
-                        <p className="text-2xl font-bold">{selectedEmail.open_count || 0}</p>
-                        <p className="text-xs text-muted-foreground">Total Opens</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <Users className="h-8 w-8 text-green-500" />
-                      <div>
                         <p className="text-2xl font-bold">{selectedEmail.unique_opens || 0}</p>
                         <p className="text-xs text-muted-foreground">Unique Opens</p>
                       </div>
                     </CardContent>
                   </Card>
+                  {(selectedEmail.open_count || 0) > (selectedEmail.unique_opens || 0) && (
+                    <Card className="bg-yellow-50/50 dark:bg-yellow-900/10">
+                      <CardContent className="p-4 flex items-center gap-3">
+                        <AlertTriangle className="h-8 w-8 text-yellow-500" />
+                        <div>
+                          <p className="text-2xl font-bold">{selectedEmail.open_count || 0}</p>
+                          <p className="text-xs text-muted-foreground">Total (inc. scanners)</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Replies Section */}
+              {(selectedEmail.reply_count || 0) > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Reply className="h-4 w-4 text-purple-500" />
+                    <h4 className="font-medium">Replies ({selectedEmail.reply_count})</h4>
+                  </div>
+                  {loadingReplies ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : replies.length > 0 ? (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {replies.map(reply => (
+                        <Card key={reply.id} className="bg-purple-50/50 dark:bg-purple-900/10">
+                          <CardContent className="p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="font-medium text-sm">
+                                {reply.from_name || reply.from_email}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(reply.received_at), 'dd/MM/yyyy HH:mm')}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{reply.body_preview || 'No preview available'}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Replies detected but details not available yet.</p>
+                  )}
                 </div>
               )}
 

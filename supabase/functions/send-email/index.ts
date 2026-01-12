@@ -236,7 +236,21 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`Processing email request from ${from} to: ${to}${attachments?.length ? ` with ${attachments.length} attachment(s)` : ''}`);
+    // Validate email format - catch invalid emails before sending
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cleanedTo = to.trim();
+    if (!emailRegex.test(cleanedTo)) {
+      console.error(`Invalid email format detected: ${to}`);
+      return new Response(
+        JSON.stringify({ error: `Invalid email address format: ${to}. Please check for spaces or invalid characters.` }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    console.log(`Processing email request from ${from} to: ${cleanedTo}${attachments?.length ? ` with ${attachments.length} attachment(s)` : ''}`);
 
     // Create Supabase client for storing email history
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -295,17 +309,112 @@ const handler = async (req: Request): Promise<Response> => {
     // Send email via Microsoft Graph API with tracking pixel and click tracking
     await sendEmail(accessToken, { to, subject, body, toName, from, attachments }, emailRecord.id);
 
-    // Update email history to mark as sent (NOT delivered - we can't confirm delivery)
-    // Email will transition to "opened" when tracking pixel loads, or "bounced" if NDR detected
+    // Fetch the sent message to get its Message-ID for reply tracking
+    // Use improved logic with fuzzy subject matching and recipient verification
+    let messageId: string | null = null;
+    let retries = 0;
+    const maxRetries = 4;
+
+    while (!messageId && retries < maxRetries) {
+      // Increase delay with each retry (2s, 3s, 4s, 5s)
+      await new Promise(resolve => setTimeout(resolve, 2000 + (retries * 1000)));
+      retries++;
+      
+      try {
+        // Fetch more sent emails for better matching
+        const sentItemsUrl = `https://graph.microsoft.com/v1.0/users/${from}/mailFolders/SentItems/messages?$top=10&$orderby=sentDateTime desc&$select=internetMessageId,subject,sentDateTime,toRecipients`;
+        
+        const sentResponse = await fetch(sentItemsUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        
+        if (sentResponse.ok) {
+          const sentData = await sentResponse.json();
+          const messages = sentData.value || [];
+          
+          // Filter messages sent within 90 seconds (increased from 30s)
+          const recentMessages = messages.filter((msg: any) => {
+            const msgTime = new Date(msg.sentDateTime);
+            const timeDiff = Date.now() - msgTime.getTime();
+            return timeDiff < 90000; // 90 seconds window
+          });
+
+          console.log(`Attempt ${retries}: Found ${recentMessages.length} recent messages in sent folder`);
+
+          // If only one recent message, use it directly (most reliable)
+          if (recentMessages.length === 1) {
+            messageId = recentMessages[0].internetMessageId;
+            console.log(`Single recent email - captured Message-ID on attempt ${retries}: ${messageId}`);
+            break;
+          }
+
+          // Try to match by recipient email first (most reliable)
+          for (const msg of recentMessages) {
+            const msgRecipients = msg.toRecipients || [];
+            const recipientMatch = msgRecipients.some((r: any) => 
+              r.emailAddress?.address?.toLowerCase() === cleanedTo.toLowerCase()
+            );
+            
+            if (recipientMatch) {
+              // Also check fuzzy subject match for extra confidence
+              // Remove template placeholders like {{Name}} for comparison
+              const normalizeSubject = (s: string) => 
+                s.replace(/\{\{[^}]+\}\}/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              
+              const normalizedSubject = normalizeSubject(subject);
+              const normalizedMsgSubject = normalizeSubject(msg.subject || '');
+              
+              // Check if subjects are similar (share at least first 15 chars or one contains the other)
+              const subjectSimilar = 
+                normalizedSubject.substring(0, 15) === normalizedMsgSubject.substring(0, 15) ||
+                normalizedSubject.includes(normalizedMsgSubject.substring(0, 15)) ||
+                normalizedMsgSubject.includes(normalizedSubject.substring(0, 15)) ||
+                msg.subject === subject; // Exact match
+              
+              if (subjectSimilar || recentMessages.length <= 2) {
+                // Recipient matches and subject is similar (or few messages to choose from)
+                messageId = msg.internetMessageId;
+                console.log(`Matched by recipient + subject on attempt ${retries}: ${messageId}`);
+                break;
+              }
+            }
+          }
+
+          // Fallback: exact subject match
+          if (!messageId) {
+            for (const msg of recentMessages) {
+              if (msg.subject === subject) {
+                messageId = msg.internetMessageId;
+                console.log(`Matched by exact subject on attempt ${retries}: ${messageId}`);
+                break;
+              }
+            }
+          }
+        } else {
+          console.warn(`Failed to fetch sent items (attempt ${retries}): ${sentResponse.status}`);
+        }
+      } catch (msgIdError) {
+        console.warn(`Failed to capture Message-ID (attempt ${retries}):`, msgIdError);
+      }
+    }
+
+    if (!messageId) {
+      console.warn(`Could not capture Message-ID for email to ${cleanedTo} after ${maxRetries} attempts`);
+    } else {
+      console.log(`Successfully captured Message-ID: ${messageId}`);
+    }
+
+    // Update email history to mark as sent with Message-ID
     await supabase
       .from("email_history")
       .update({ 
         status: "sent",
-        is_valid_open: true
+        is_valid_open: true,
+        message_id: messageId,
       })
       .eq("id", emailRecord.id);
 
-    console.log(`Email marked as sent for record: ${emailRecord.id}`);
+    console.log(`Email marked as sent for record: ${emailRecord.id}${messageId ? ` with Message-ID: ${messageId}` : ' (no Message-ID captured)'}`);
 
     // Queue a bounce check for 45 seconds from now (auto bounce detection)
     const checkAfter = new Date(Date.now() + 45000).toISOString();

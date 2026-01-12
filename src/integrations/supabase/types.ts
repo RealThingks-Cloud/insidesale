@@ -948,16 +948,21 @@ export type Database = {
           first_open_ip: string | null
           id: string
           is_valid_open: boolean | null
+          last_reply_at: string | null
           lead_id: string | null
+          message_id: string | null
           open_count: number | null
           opened_at: string | null
           recipient_email: string
           recipient_name: string | null
+          replied_at: string | null
+          reply_count: number | null
           sender_email: string
           sent_at: string
           sent_by: string | null
           status: string
           subject: string
+          thread_id: string | null
           unique_opens: number | null
           updated_at: string
         }
@@ -975,16 +980,21 @@ export type Database = {
           first_open_ip?: string | null
           id?: string
           is_valid_open?: boolean | null
+          last_reply_at?: string | null
           lead_id?: string | null
+          message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
           recipient_email: string
           recipient_name?: string | null
+          replied_at?: string | null
+          reply_count?: number | null
           sender_email: string
           sent_at?: string
           sent_by?: string | null
           status?: string
           subject: string
+          thread_id?: string | null
           unique_opens?: number | null
           updated_at?: string
         }
@@ -1002,16 +1012,21 @@ export type Database = {
           first_open_ip?: string | null
           id?: string
           is_valid_open?: boolean | null
+          last_reply_at?: string | null
           lead_id?: string | null
+          message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
           recipient_email?: string
           recipient_name?: string | null
+          replied_at?: string | null
+          reply_count?: number | null
           sender_email?: string
           sent_at?: string
           sent_by?: string | null
           status?: string
           subject?: string
+          thread_id?: string | null
           unique_opens?: number | null
           updated_at?: string
         }
@@ -1035,6 +1050,53 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_replies: {
+        Row: {
+          body_preview: string | null
+          created_at: string | null
+          email_history_id: string
+          from_email: string
+          from_name: string | null
+          graph_message_id: string | null
+          id: string
+          received_at: string
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          created_at?: string | null
+          email_history_id: string
+          from_email: string
+          from_name?: string | null
+          graph_message_id?: string | null
+          id?: string
+          received_at: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          created_at?: string | null
+          email_history_id?: string
+          from_email?: string
+          from_name?: string | null
+          graph_message_id?: string | null
+          id?: string
+          received_at?: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_replies_email_history_id_fkey"
+            columns: ["email_history_id"]
+            isOneToOne: false
+            referencedRelation: "email_history"
             referencedColumns: ["id"]
           },
         ]
