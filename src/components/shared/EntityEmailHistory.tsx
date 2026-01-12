@@ -108,13 +108,17 @@ interface EntityEmailHistoryProps {
   entityId: string;
 }
 
-// Helper function to get user-friendly bounce explanation
+// Helper function to get user-friendly bounce explanation based on actual bounce_type
 const getBounceExplanation = (bounceType: string | null) => {
   if (bounceType === 'hard') {
     return { title: "Delivery Failed", Icon: MailX, severity: 'error' as const };
   }
   if (bounceType === 'soft') {
     return { title: "Delivery Delayed", Icon: AlertTriangle, severity: 'warning' as const };
+  }
+  // For unknown bounce types, check if it's actually a bounce
+  if (bounceType) {
+    return { title: "Delivery Issue", Icon: XCircle, severity: 'warning' as const };
   }
   return { title: "Delivery Failed", Icon: XCircle, severity: 'error' as const };
 };
@@ -695,3 +699,5 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     </>
   );
 };
+
+export default EntityEmailHistory;

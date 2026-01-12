@@ -369,6 +369,7 @@ const EmailHistorySettings = () => {
 
   // Handle reply to original email
   const handleReplyToEmail = (email: EmailHistoryRecord) => {
+    setSelectedEmail(email);
     setReplyToData(undefined);
     setShowReplyModal(true);
   };
@@ -407,9 +408,9 @@ const EmailHistorySettings = () => {
     const isValidOpen = email.is_valid_open;
     const replyCount = email.reply_count;
 
-    // Show "Verifying..." for emails sent within the last 60 seconds
+    // Show "Verifying..." for emails sent within the last 120 seconds
     const sentAt = new Date(email.sent_at);
-    const isRecentlySent = Date.now() - sentAt.getTime() < 60000; // 60 seconds
+    const isRecentlySent = Date.now() - sentAt.getTime() < 120000; // 120 seconds
 
     if (status === 'sent' && isRecentlySent && !bounceType) {
       return (
@@ -622,9 +623,12 @@ const EmailHistorySettings = () => {
         </p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Clickable to filter */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md hover:border-primary/50 ${statusFilter === 'all' ? 'border-primary ring-1 ring-primary' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
@@ -633,7 +637,10 @@ const EmailHistorySettings = () => {
             <p className="text-xl font-bold mt-1">{stats.total}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md hover:border-destructive/50 ${statusFilter === 'bounced' ? 'border-destructive ring-1 ring-destructive' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'bounced' ? 'all' : 'bounced')}
+        >
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4 text-destructive" />
@@ -642,16 +649,22 @@ const EmailHistorySettings = () => {
             <p className="text-xl font-bold mt-1 text-destructive">{stats.bounced}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md hover:border-green-500/50 ${statusFilter === 'opened' ? 'border-green-500 ring-1 ring-green-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'opened' ? 'all' : 'opened')}
+        >
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-muted-foreground" />
+              <Eye className="h-4 w-4 text-green-600" />
               <span className="text-sm text-muted-foreground">Opened</span>
             </div>
             <p className="text-xl font-bold mt-1">{stats.opened}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md hover:border-purple-500/50 ${statusFilter === 'replied' ? 'border-purple-500 ring-1 ring-purple-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'replied' ? 'all' : 'replied')}
+        >
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Reply className="h-4 w-4 text-purple-500" />
@@ -660,7 +673,7 @@ const EmailHistorySettings = () => {
             <p className="text-xl font-bold mt-1 text-purple-600">{stats.replied}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-default">
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-primary" />

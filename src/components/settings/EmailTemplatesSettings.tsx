@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, Eye, Copy, Search } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Copy, Search, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -192,7 +192,10 @@ const EmailTemplatesSettings = () => {
     }
   };
 
-  const handleDuplicate = async (template: EmailTemplate) => {
+  const handleDuplicate = async (template: EmailTemplate, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     setSaving(true);
     try {
       const duplicateData = {
@@ -282,24 +285,37 @@ const EmailTemplatesSettings = () => {
             <TableBody>
               {paginatedTemplates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    {searchQuery ? "No templates match your search." : "No email templates yet. Create your first template to get started."}
+                  <TableCell colSpan={4} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Mail className="h-10 w-10 mb-3 opacity-50" />
+                      <p className="font-medium">
+                        {searchQuery ? "No templates match your search" : "No email templates yet"}
+                      </p>
+                      <p className="text-sm mt-1">
+                        {searchQuery ? "Try adjusting your search terms" : "Create your first template to get started"}
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 paginatedTemplates.map((template) => (
-                  <TableRow key={template.id}>
+                  <TableRow 
+                    key={template.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleOpenModal(template)}
+                  >
                     <TableCell className="font-medium">{template.name}</TableCell>
                     <TableCell>{template.subject}</TableCell>
                     <TableCell>{format(new Date(template.created_at), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setPreviewTemplate(template);
                                 setShowPreviewModal(true);
                               }}
@@ -315,7 +331,7 @@ const EmailTemplatesSettings = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDuplicate(template)}
+                              onClick={(e) => handleDuplicate(template, e)}
                               disabled={saving}
                               aria-label={`Duplicate ${template.name} template`}
                             >
@@ -329,7 +345,10 @@ const EmailTemplatesSettings = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleOpenModal(template)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal(template);
+                              }}
                               aria-label={`Edit ${template.name} template`}
                             >
                               <Edit className="h-4 w-4" />
@@ -342,7 +361,8 @@ const EmailTemplatesSettings = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setTemplateToDelete(template.id);
                                 setShowDeleteDialog(true);
                               }}
