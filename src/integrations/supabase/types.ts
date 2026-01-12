@@ -947,12 +947,14 @@ export type Database = {
           delivered_at: string | null
           first_open_ip: string | null
           id: string
+          is_reply: boolean | null
           is_valid_open: boolean | null
           last_reply_at: string | null
           lead_id: string | null
           message_id: string | null
           open_count: number | null
           opened_at: string | null
+          parent_email_id: string | null
           recipient_email: string
           recipient_name: string | null
           replied_at: string | null
@@ -979,12 +981,14 @@ export type Database = {
           delivered_at?: string | null
           first_open_ip?: string | null
           id?: string
+          is_reply?: boolean | null
           is_valid_open?: boolean | null
           last_reply_at?: string | null
           lead_id?: string | null
           message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
+          parent_email_id?: string | null
           recipient_email: string
           recipient_name?: string | null
           replied_at?: string | null
@@ -1011,12 +1015,14 @@ export type Database = {
           delivered_at?: string | null
           first_open_ip?: string | null
           id?: string
+          is_reply?: boolean | null
           is_valid_open?: boolean | null
           last_reply_at?: string | null
           lead_id?: string | null
           message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
+          parent_email_id?: string | null
           recipient_email?: string
           recipient_name?: string | null
           replied_at?: string | null
@@ -1050,6 +1056,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_history_parent_email_id_fkey"
+            columns: ["parent_email_id"]
+            isOneToOne: false
+            referencedRelation: "email_history"
             referencedColumns: ["id"]
           },
         ]

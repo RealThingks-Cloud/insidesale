@@ -21,6 +21,11 @@ interface EmailRequest {
   attachments?: EmailAttachment[];
   entityType?: string; // 'lead', 'contact', 'account'
   entityId?: string;
+  // Threading fields
+  parentEmailId?: string; // The email being replied to
+  threadId?: string; // Thread grouping ID
+  isReply?: boolean; // Whether this is a reply
+  parentMessageId?: string; // Internet Message-ID of parent for email headers
 }
 
 async function getAccessToken(): Promise<string> {
@@ -150,7 +155,29 @@ function wrapEmailContent(htmlBody: string): string {
   return `<div style="font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.15; color: #000000;">${processed}</div>`;
 }
 
-async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailHistoryId: string): Promise<void> {
+// Rewrite links in email body to track clicks
+function rewriteLinksForTracking(html: string, emailHistoryId: string, supabaseUrl: string): string {
+  // Match href attributes with http/https URLs
+  const linkRegex = /href=["'](https?:\/\/[^"']+)["']/gi;
+  
+  return html.replace(linkRegex, (match, url) => {
+    // Don't rewrite unsubscribe links or our own tracking URLs
+    if (url.includes('unsubscribe') || url.includes('track-email')) {
+      return match;
+    }
+    
+    const encodedUrl = encodeURIComponent(url);
+    const trackingUrl = `${supabaseUrl}/functions/v1/track-email-click?id=${emailHistoryId}&url=${encodedUrl}`;
+    return `href="${trackingUrl}"`;
+  });
+}
+
+async function sendEmail(
+  accessToken: string, 
+  emailRequest: EmailRequest, 
+  emailHistoryId: string,
+  parentMessageId?: string | null
+): Promise<void> {
   const graphUrl = `https://graph.microsoft.com/v1.0/users/${emailRequest.from}/sendMail`;
 
   // Build attachments array for Microsoft Graph API
@@ -168,9 +195,12 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
   // Wrap the content with proper inline styles for email clients
   const wrappedBody = wrapEmailContent(emailRequest.body);
   
+  // Rewrite links for click tracking
+  const bodyWithClickTracking = rewriteLinksForTracking(wrappedBody, emailHistoryId, supabaseUrl);
+  
   // Embed tracking pixel in email body (append to HTML content)
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
-  const bodyWithTracking = wrappedBody + trackingPixel;
+  const bodyWithTracking = bodyWithClickTracking + trackingPixel;
 
   const emailPayload: any = {
     message: {
@@ -190,6 +220,21 @@ async function sendEmail(accessToken: string, emailRequest: EmailRequest, emailH
     },
     saveToSentItems: true,
   };
+
+  // Add threading headers for replies (so email clients group them together)
+  if (emailRequest.isReply && parentMessageId) {
+    emailPayload.message.internetMessageHeaders = [
+      {
+        name: "In-Reply-To",
+        value: parentMessageId,
+      },
+      {
+        name: "References",
+        value: parentMessageId,
+      },
+    ];
+    console.log(`Adding threading headers: In-Reply-To: ${parentMessageId}`);
+  }
 
   // Add attachments if present
   if (attachments.length > 0) {
@@ -224,7 +269,10 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, body, toName, from, attachments, entityType, entityId }: EmailRequest = await req.json();
+    const { 
+      to, subject, body, toName, from, attachments, entityType, entityId,
+      parentEmailId, threadId, isReply, parentMessageId
+    }: EmailRequest = await req.json();
 
     if (!to || !subject || !from) {
       return new Response(
@@ -250,7 +298,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`Processing email request from ${from} to: ${cleanedTo}${attachments?.length ? ` with ${attachments.length} attachment(s)` : ''}`);
+    console.log(`Processing email request from ${from} to: ${cleanedTo}${attachments?.length ? ` with ${attachments.length} attachment(s)` : ''}${isReply ? ' (REPLY)' : ''}`);
 
     // Create Supabase client for storing email history
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -267,18 +315,42 @@ const handler = async (req: Request): Promise<Response> => {
       userId = user?.id || null;
     }
 
+    // Determine thread_id for threading
+    // If this is a reply, use the provided threadId or parentEmailId
+    // If it's a new email, thread_id will be set to the new email's own ID after creation
+    let resolvedThreadId = threadId || parentEmailId || null;
+
+    // If parentEmailId is provided, fetch the parent's message_id for email headers
+    let resolvedParentMessageId = parentMessageId;
+    if (parentEmailId && !resolvedParentMessageId) {
+      const { data: parentEmail } = await supabase
+        .from("email_history")
+        .select("message_id, thread_id")
+        .eq("id", parentEmailId)
+        .single();
+      
+      if (parentEmail) {
+        resolvedParentMessageId = parentEmail.message_id;
+        // Use parent's thread_id if available
+        if (parentEmail.thread_id && !resolvedThreadId) {
+          resolvedThreadId = parentEmail.thread_id;
+        }
+      }
+    }
+
     // Create email history record first to get the ID for tracking
-    // Status starts as "sent" - will be updated to "delivered" after successful send
-    // or "bounced" if a bounce is detected
     const emailHistoryData: any = {
       recipient_email: to,
       recipient_name: toName || to,
       sender_email: from,
       subject: subject,
       body: body,
-      status: "sent", // Keep as "sent" - delivery confirmation comes later
+      status: "sent",
       sent_by: userId,
-      is_valid_open: true, // Default to true, will be set to false if bot detected
+      is_valid_open: true,
+      // Threading fields
+      parent_email_id: parentEmailId || null,
+      is_reply: isReply || false,
     };
 
     // Add entity references if provided
@@ -288,6 +360,21 @@ const handler = async (req: Request): Promise<Response> => {
       emailHistoryData.contact_id = entityId;
     } else if (entityType === "account" && entityId) {
       emailHistoryData.account_id = entityId;
+    }
+
+    // If this is a reply, copy entity refs from parent if not provided
+    if (isReply && parentEmailId && !entityId) {
+      const { data: parentEmail } = await supabase
+        .from("email_history")
+        .select("lead_id, contact_id, account_id")
+        .eq("id", parentEmailId)
+        .single();
+      
+      if (parentEmail) {
+        if (parentEmail.lead_id) emailHistoryData.lead_id = parentEmail.lead_id;
+        if (parentEmail.contact_id) emailHistoryData.contact_id = parentEmail.contact_id;
+        if (parentEmail.account_id) emailHistoryData.account_id = parentEmail.account_id;
+      }
     }
 
     const { data: emailRecord, error: insertError } = await supabase
@@ -301,27 +388,35 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Failed to create email history: ${insertError.message}`);
     }
 
-    console.log(`Created email history record with ID: ${emailRecord.id}`);
+    console.log(`Created email history record with ID: ${emailRecord.id}${isReply ? ` (reply to ${parentEmailId})` : ''}`);
+
+    // Set thread_id: for new emails, use own ID; for replies, use resolved thread ID
+    const finalThreadId = resolvedThreadId || emailRecord.id;
+    
+    // Update the record with thread_id
+    await supabase
+      .from("email_history")
+      .update({ thread_id: finalThreadId })
+      .eq("id", emailRecord.id);
+
+    console.log(`Set thread_id to: ${finalThreadId}`);
 
     // Get access token from Azure AD
     const accessToken = await getAccessToken();
 
     // Send email via Microsoft Graph API with tracking pixel and click tracking
-    await sendEmail(accessToken, { to, subject, body, toName, from, attachments }, emailRecord.id);
+    await sendEmail(accessToken, { to, subject, body, toName, from, attachments, isReply }, emailRecord.id, resolvedParentMessageId);
 
     // Fetch the sent message to get its Message-ID for reply tracking
-    // Use improved logic with fuzzy subject matching and recipient verification
     let messageId: string | null = null;
     let retries = 0;
     const maxRetries = 4;
 
     while (!messageId && retries < maxRetries) {
-      // Increase delay with each retry (2s, 3s, 4s, 5s)
       await new Promise(resolve => setTimeout(resolve, 2000 + (retries * 1000)));
       retries++;
       
       try {
-        // Fetch more sent emails for better matching
         const sentItemsUrl = `https://graph.microsoft.com/v1.0/users/${from}/mailFolders/SentItems/messages?$top=10&$orderby=sentDateTime desc&$select=internetMessageId,subject,sentDateTime,toRecipients`;
         
         const sentResponse = await fetch(sentItemsUrl, {
@@ -332,23 +427,20 @@ const handler = async (req: Request): Promise<Response> => {
           const sentData = await sentResponse.json();
           const messages = sentData.value || [];
           
-          // Filter messages sent within 90 seconds (increased from 30s)
           const recentMessages = messages.filter((msg: any) => {
             const msgTime = new Date(msg.sentDateTime);
             const timeDiff = Date.now() - msgTime.getTime();
-            return timeDiff < 90000; // 90 seconds window
+            return timeDiff < 90000;
           });
 
           console.log(`Attempt ${retries}: Found ${recentMessages.length} recent messages in sent folder`);
 
-          // If only one recent message, use it directly (most reliable)
           if (recentMessages.length === 1) {
             messageId = recentMessages[0].internetMessageId;
             console.log(`Single recent email - captured Message-ID on attempt ${retries}: ${messageId}`);
             break;
           }
 
-          // Try to match by recipient email first (most reliable)
           for (const msg of recentMessages) {
             const msgRecipients = msg.toRecipients || [];
             const recipientMatch = msgRecipients.some((r: any) => 
@@ -356,23 +448,19 @@ const handler = async (req: Request): Promise<Response> => {
             );
             
             if (recipientMatch) {
-              // Also check fuzzy subject match for extra confidence
-              // Remove template placeholders like {{Name}} for comparison
               const normalizeSubject = (s: string) => 
                 s.replace(/\{\{[^}]+\}\}/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
               
               const normalizedSubject = normalizeSubject(subject);
               const normalizedMsgSubject = normalizeSubject(msg.subject || '');
               
-              // Check if subjects are similar (share at least first 15 chars or one contains the other)
               const subjectSimilar = 
                 normalizedSubject.substring(0, 15) === normalizedMsgSubject.substring(0, 15) ||
                 normalizedSubject.includes(normalizedMsgSubject.substring(0, 15)) ||
                 normalizedMsgSubject.includes(normalizedSubject.substring(0, 15)) ||
-                msg.subject === subject; // Exact match
+                msg.subject === subject;
               
               if (subjectSimilar || recentMessages.length <= 2) {
-                // Recipient matches and subject is similar (or few messages to choose from)
                 messageId = msg.internetMessageId;
                 console.log(`Matched by recipient + subject on attempt ${retries}: ${messageId}`);
                 break;
@@ -380,7 +468,6 @@ const handler = async (req: Request): Promise<Response> => {
             }
           }
 
-          // Fallback: exact subject match
           if (!messageId) {
             for (const msg of recentMessages) {
               if (msg.subject === subject) {
@@ -404,7 +491,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Successfully captured Message-ID: ${messageId}`);
     }
 
-    // Update email history to mark as sent with Message-ID
+    // Update email history with Message-ID
     await supabase
       .from("email_history")
       .update({ 
@@ -416,7 +503,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Email marked as sent for record: ${emailRecord.id}${messageId ? ` with Message-ID: ${messageId}` : ' (no Message-ID captured)'}`);
 
-    // Queue a bounce check for 45 seconds from now (auto bounce detection)
+    // Queue a bounce check for 45 seconds from now
     const checkAfter = new Date(Date.now() + 45000).toISOString();
     const { error: queueError } = await supabase
       .from("pending_bounce_checks")
@@ -437,7 +524,8 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ 
         success: true, 
         message: "Email sent successfully",
-        emailId: emailRecord.id 
+        emailId: emailRecord.id,
+        threadId: finalThreadId,
       }),
       {
         status: 200,

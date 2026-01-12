@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +22,8 @@ interface OriginalEmailData {
   contact_id?: string | null;
   lead_id?: string | null;
   account_id?: string | null;
+  thread_id?: string | null;
+  message_id?: string | null;
 }
 
 interface ReplyToData {
@@ -71,29 +73,15 @@ export const EmailReplyModal = ({
     return `Re: ${baseSubject}`;
   };
 
-  // Build quoted message
-  const getQuotedMessage = () => {
-    if (replyTo) {
-      const date = replyTo.received_at ? format(new Date(replyTo.received_at), 'PPp') : '';
-      const from = replyTo.from_name || replyTo.from_email;
-      return `\n\n---\nOn ${date}, ${from} wrote:\n> ${replyTo.body_preview || ''}`;
-    }
-    
-    const date = originalEmail.sent_at ? format(new Date(originalEmail.sent_at), 'PPp') : '';
-    const to = originalEmail.recipient_name || originalEmail.recipient_email;
-    const strippedBody = originalEmail.body?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || '';
-    return `\n\n---\nOn ${date}, to ${to}:\n> ${strippedBody}`;
-  };
-
-  // Initialize state when modal opens
-  useState(() => {
+  // Reset state when modal opens
+  useEffect(() => {
     if (open) {
       setSubject(getReplySubject());
       setBody("");
       setAttachments([]);
       setShowOriginalMessage(false);
     }
-  });
+  }, [open, originalEmail.subject, replyTo?.subject]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -180,6 +168,9 @@ export const EmailReplyModal = ({
                          originalEmail.account_id ? 'account' : undefined;
       const entityId = originalEmail.contact_id || originalEmail.lead_id || originalEmail.account_id || undefined;
 
+      // Thread ID: use existing thread_id, or the original email's ID if it's the first in a thread
+      const threadId = originalEmail.thread_id || originalEmail.id;
+
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: replyToEmail,
@@ -190,6 +181,11 @@ export const EmailReplyModal = ({
           attachments: attachmentData,
           entityType,
           entityId,
+          // Threading fields - this is what links the reply to the thread
+          parentEmailId: originalEmail.id,
+          threadId: threadId,
+          isReply: true,
+          parentMessageId: originalEmail.message_id,
         },
       });
 
