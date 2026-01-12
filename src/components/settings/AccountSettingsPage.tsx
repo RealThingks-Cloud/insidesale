@@ -208,7 +208,7 @@ const AccountSettingsPage = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl pb-6">
+    <div className="space-y-6 w-full pb-6">
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="profile" className="flex items-center gap-1.5 text-xs sm:text-sm">

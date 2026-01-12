@@ -81,7 +81,7 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 w-full">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           {adminTabs.map(tab => {

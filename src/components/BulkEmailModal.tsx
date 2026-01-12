@@ -6,11 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Send, Loader2, Users, X } from "lucide-react";
+import { Mail, Send, Loader2, Users, X, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
+import { EMAIL_VARIABLES } from "@/utils/emailConstants";
+import { stripHtmlTags } from "@/utils/emailUtils";
 
 export interface BulkEmailRecipient {
   id: string;
@@ -235,13 +237,24 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
 
           <div className="space-y-2">
             <Label htmlFor="body">Message</Label>
-            <Textarea
-              id="body"
+            <RichTextEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Email message..."
-              rows={6}
+              onChange={setBody}
+              placeholder="Email message... Use {{name}} for personalization."
             />
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Insert:</span>
+              {EMAIL_VARIABLES.slice(0, 3).map((v) => (
+                <Badge 
+                  key={v.variable}
+                  variant="outline" 
+                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs"
+                  onClick={() => setBody(prev => prev + v.variable)}
+                >
+                  {v.variable}
+                </Badge>
+              ))}
+            </div>
           </div>
 
           {isSending && (
