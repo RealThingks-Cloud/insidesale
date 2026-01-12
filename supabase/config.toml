@@ -44,3 +44,12 @@ verify_jwt = false
 
 [functions.keep-alive]
 verify_jwt = false
+
+[functions.mark-email-bounced]
+verify_jwt = false
+
+[functions.sync-email-bounces]
+verify_jwt = false
+
+[functions.process-bounce-checks]
+verify_jwt = false

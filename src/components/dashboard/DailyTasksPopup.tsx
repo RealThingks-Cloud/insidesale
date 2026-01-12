@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { format, startOfDay, addDays, isBefore, formatDistanceToNow } from 'date-fns';
+import { format, startOfDay, isBefore, formatDistanceToNow } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,14 +10,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu';
 import { 
   CheckCircle2, 
   Circle, 
@@ -32,7 +24,6 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Filter,
   Eye,
   EyeOff,
   Loader2,
@@ -51,8 +42,6 @@ interface DailyTasksPopupProps {
   onViewTask?: (task: Task) => void;
 }
 
-type SortOption = 'priority' | 'time' | 'module';
-
 const priorityOrder = { high: 0, medium: 1, low: 2 };
 const priorityColors = {
   high: 'border-l-destructive',
@@ -66,11 +55,11 @@ const priorityDotColors = {
 };
 
 const moduleIcons: Record<string, React.ReactNode> = {
-  accounts: <Building2 className="h-3.5 w-3.5" />,
-  contacts: <User className="h-3.5 w-3.5" />,
-  leads: <Target className="h-3.5 w-3.5" />,
-  deals: <Briefcase className="h-3.5 w-3.5" />,
-  meetings: <Calendar className="h-3.5 w-3.5" />,
+  accounts: <Building2 className="h-4 w-4" />,
+  contacts: <User className="h-4 w-4" />,
+  leads: <Target className="h-4 w-4" />,
+  deals: <Briefcase className="h-4 w-4" />,
+  meetings: <Calendar className="h-4 w-4" />,
 };
 
 export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
@@ -78,7 +67,6 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('priority');
   const [showCompleted, setShowCompleted] = useState(false);
   const [showOverdue, setShowOverdue] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -88,7 +76,35 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  // Check if popup should be shown today
+  // Pre-check query: Check if there are pending tasks (runs even when popup is closed)
+  const { data: hasPendingTasks = false } = useQuery({
+    queryKey: ['pending-tasks-check', user?.id, today],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      
+      // Check for today's pending tasks
+      const { count: todayCount } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_to', user.id)
+        .eq('due_date', today)
+        .in('status', ['open', 'in_progress']);
+
+      // Check for overdue tasks
+      const { count: overdueCount } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_to', user.id)
+        .lt('due_date', today)
+        .in('status', ['open', 'in_progress']);
+
+      return (todayCount || 0) > 0 || (overdueCount || 0) > 0;
+    },
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+
+  // Check if popup should be shown today - now considers overdue tasks
   useEffect(() => {
     if (!user?.id) return;
 
@@ -96,21 +112,32 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     const dontShow = localStorage.getItem(DONT_SHOW_TODAY_KEY);
     const todayKey = startOfDay(new Date()).toISOString();
 
+    // Clear old don't show key if it's from a previous day
+    if (dontShow && dontShow !== todayKey) {
+      localStorage.removeItem(DONT_SHOW_TODAY_KEY);
+    }
+
     // Check if user requested to not show today
     if (dontShow === todayKey) {
       return;
     }
 
-    if (lastShown !== todayKey) {
+    // Show popup if:
+    // 1. It hasn't been shown today yet, OR
+    // 2. There are pending tasks (including overdue) and it's a new session
+    const shouldShow = lastShown !== todayKey || (hasPendingTasks && !sessionStorage.getItem('popup-shown-this-session'));
+
+    if (shouldShow && hasPendingTasks) {
       const timer = setTimeout(() => {
         setOpen(true);
+        sessionStorage.setItem('popup-shown-this-session', 'true');
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [user?.id]);
+  }, [user?.id, hasPendingTasks]);
 
   // Fetch today's tasks with related entity names
-  const { data: todaysTasks = [], isLoading } = useQuery({
+  const { data: todaysTasks = [], isLoading: isLoadingToday } = useQuery({
     queryKey: ['todays-tasks', user?.id, today],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -150,7 +177,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   });
 
   // Fetch overdue tasks
-  const { data: overdueTasks = [] } = useQuery({
+  const { data: overdueTasks = [], isLoading: isLoadingOverdue } = useQuery({
     queryKey: ['overdue-tasks', user?.id, today],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -190,6 +217,8 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     staleTime: 60000,
   });
 
+  const isLoading = isLoadingToday || isLoadingOverdue;
+
   // Toggle task completion
   const toggleTaskMutation = useMutation({
     mutationFn: async ({ taskId, currentStatus }: { taskId: string; currentStatus: string }) => {
@@ -208,6 +237,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     onSuccess: (newStatus) => {
       queryClient.invalidateQueries({ queryKey: ['todays-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-tasks-check'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['user-tasks'] });
       toast.success(newStatus === 'completed' ? 'Task completed!' : 'Task reopened');
@@ -217,7 +247,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     },
   });
 
-  // Sort and filter tasks
+  // Filter and sort tasks - ALWAYS sort by priority (removed sort options)
   const sortedTodayTasks = useMemo(() => {
     let tasks = [...todaysTasks];
 
@@ -225,25 +255,14 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
       tasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
     }
 
+    // Always sort by priority
     tasks.sort((a, b) => {
-      switch (sortBy) {
-        case 'priority':
-          return (priorityOrder[a.priority as keyof typeof priorityOrder] || 2) - 
-                 (priorityOrder[b.priority as keyof typeof priorityOrder] || 2);
-        case 'time':
-          if (!a.due_time && !b.due_time) return 0;
-          if (!a.due_time) return 1;
-          if (!b.due_time) return -1;
-          return a.due_time.localeCompare(b.due_time);
-        case 'module':
-          return (a.module_type || '').localeCompare(b.module_type || '');
-        default:
-          return 0;
-      }
+      return (priorityOrder[a.priority as keyof typeof priorityOrder] || 2) - 
+             (priorityOrder[b.priority as keyof typeof priorityOrder] || 2);
     });
 
     return tasks;
-  }, [todaysTasks, sortBy, showCompleted]);
+  }, [todaysTasks, showCompleted]);
 
   // All tasks for keyboard navigation
   const allNavigableTasks = useMemo(() => {
@@ -255,12 +274,15 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     return tasks;
   }, [overdueTasks, sortedTodayTasks, showOverdue]);
 
-  // Calculate stats
+  // Calculate stats - include overdue tasks in totals
   const completedToday = todaysTasks.filter(t => t.status === 'completed').length;
-  const totalToday = todaysTasks.length;
-  const progressPercent = totalToday > 0 ? (completedToday / totalToday) * 100 : 0;
-  const highPriorityCount = sortedTodayTasks.filter(t => t.priority === 'high').length;
+  const pendingTodayCount = todaysTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
   const overdueCount = overdueTasks.length;
+  const totalPending = pendingTodayCount + overdueCount;
+  const totalAll = todaysTasks.length + overdueCount;
+  const progressPercent = totalAll > 0 ? (completedToday / totalAll) * 100 : 0;
+  const highPriorityCount = sortedTodayTasks.filter(t => t.priority === 'high').length + 
+                           overdueTasks.filter(t => t.priority === 'high').length;
 
   // Handle closing and remember that we showed it today
   const handleClose = useCallback(() => {
@@ -291,7 +313,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setSelectedIndex(prev => Math.max(prev - 1, -1));
+          setSelectedIndex(prev => Math.max(prev - 1, 0)); // Fixed: don't go below 0
           break;
         case 'Enter':
           e.preventDefault();
@@ -382,7 +404,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     onViewTask?.(task);
   };
 
-  // Compact Task Card Component
+  // Compact Task Card Component - INCREASED SIZE BY 50%
   const TaskCard = ({ task, isOverdue = false, isSelected = false }: { task: Task; isOverdue?: boolean; isSelected?: boolean }) => {
     const linkedEntity = getLinkedEntity(task);
     const formattedTime = formatTime(task.due_time);
@@ -394,21 +416,21 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
     return (
       <div
         className={cn(
-          "group relative flex items-start gap-3 p-3 rounded-lg border-l-[3px] transition-all cursor-pointer",
+          "group relative flex items-start gap-4 p-4 rounded-lg border-l-4 transition-all cursor-pointer",
           isOverdue ? "border-l-destructive bg-destructive/5" : priorityColors[priority] || 'border-l-border',
           isCompleted && "opacity-60",
-          isSelected && "ring-2 ring-primary ring-offset-1",
+          isSelected && "ring-2 ring-primary ring-offset-2",
           "hover:bg-accent/50"
         )}
         onClick={() => handleTaskClick(task)}
       >
-        {/* Priority Dot */}
+        {/* Priority Dot - larger */}
         <div className={cn(
-          "w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1",
+          "w-3 h-3 rounded-full flex-shrink-0 mt-1.5",
           isOverdue ? "bg-destructive" : priorityDotColors[priority] || 'bg-muted'
         )} />
 
-        {/* Checkbox */}
+        {/* Checkbox - larger */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -418,48 +440,48 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           disabled={isToggling}
         >
           {isToggling ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-6 w-6 animate-spin" />
           ) : isCompleted ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
           ) : (
-            <Circle className="h-5 w-5" />
+            <Circle className="h-6 w-6" />
           )}
         </button>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <span className={cn(
-              "text-base font-medium",
+              "text-lg font-medium", // Increased from text-base
               isCompleted && "line-through text-muted-foreground"
             )}>
               {task.title}
             </span>
             
             {formattedTime && (
-              <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 flex-shrink-0">
-                <Clock className="h-3 w-3 mr-1" />
+              <Badge variant="outline" className="text-sm px-2 py-0.5 h-6 flex-shrink-0">
+                <Clock className="h-3.5 w-3.5 mr-1" />
                 {formattedTime}
               </Badge>
             )}
 
             {priority === 'high' && !isCompleted && (
-              <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 flex-shrink-0">
-                <AlertCircle className="h-3 w-3 mr-0.5" />
+              <Badge variant="destructive" className="text-sm px-2 py-0.5 h-6 flex-shrink-0">
+                <AlertCircle className="h-3.5 w-3.5 mr-1" />
                 High
               </Badge>
             )}
           </div>
 
-          {/* Description preview */}
+          {/* Description preview - increased max width */}
           {task.description && (
-            <p className="text-sm text-muted-foreground truncate mt-1 max-w-[400px]">
+            <p className="text-sm text-muted-foreground truncate mt-1.5 max-w-[500px]">
               {task.description}
             </p>
           )}
           
           {linkedEntity && (
-            <div className="flex items-center gap-1.5 mt-1.5">
+            <div className="flex items-center gap-2 mt-2">
               <span className="text-muted-foreground">{linkedEntity.icon}</span>
               <span className="text-sm text-muted-foreground truncate">{linkedEntity.name}</span>
             </div>
@@ -473,13 +495,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-8 w-8"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTaskClick(task);
                 }}
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>View details</TooltipContent>
@@ -488,13 +510,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
 
         {/* Relative time on right */}
         {relativeTime && !isCompleted && (
-          <span className="text-xs text-muted-foreground flex-shrink-0 group-hover:hidden">
+          <span className="text-sm text-muted-foreground flex-shrink-0 group-hover:hidden">
             {relativeTime}
           </span>
         )}
 
         {isOverdue && (
-          <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 flex-shrink-0 group-hover:hidden">
+          <Badge variant="destructive" className="text-sm px-2 py-0.5 h-6 flex-shrink-0 group-hover:hidden">
             {format(new Date(task.due_date!), 'MMM d')}
           </Badge>
         )}
@@ -507,103 +529,87 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-xl p-0 gap-0">
+        <DialogContent className="sm:max-w-2xl p-0 gap-0"> {/* Increased from sm:max-w-xl */}
           {/* Header */}
-          <DialogHeader className="p-5 pb-4 border-b">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-full bg-primary/10">
-                <ListTodo className="w-6 h-6 text-primary" />
+          <DialogHeader className="p-6 pb-5 border-b"> {/* Increased padding */}
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-primary/10">
+                <ListTodo className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-xl">Today's Tasks</DialogTitle>
-                <DialogDescription className="text-sm">
+                <DialogTitle className="text-2xl">Today's Tasks</DialogTitle> {/* Increased from text-xl */}
+                <DialogDescription className="text-base">
                   {format(new Date(), 'EEEE, MMMM d, yyyy')}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          {/* Progress Bar */}
-          {totalToday > 0 && (
-            <div className="px-5 py-3 border-b bg-muted/30">
-              <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
-                <span>{completedToday} of {totalToday} completed</span>
+          {/* Progress Bar - includes overdue tasks */}
+          {totalAll > 0 && (
+            <div className="px-6 py-4 border-b bg-muted/30">
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                <span>{completedToday} of {totalAll} completed {overdueCount > 0 && `(${overdueCount} overdue)`}</span>
                 <span className="font-medium">{Math.round(progressPercent)}%</span>
               </div>
-              <Progress value={progressPercent} className="h-2" />
+              <Progress value={progressPercent} className="h-2.5" />
             </div>
           )}
 
           {/* Quick Stats */}
           {(highPriorityCount > 0 || overdueCount > 0) && (
-            <div className="px-5 py-2.5 flex items-center gap-4 text-sm border-b bg-muted/10">
+            <div className="px-6 py-3 flex items-center gap-5 text-sm border-b bg-muted/10">
               {highPriorityCount > 0 && (
-                <span className="flex items-center gap-1.5 text-destructive">
-                  <span className="w-2 h-2 rounded-full bg-destructive" />
+                <span className="flex items-center gap-2 text-destructive">
+                  <span className="w-2.5 h-2.5 rounded-full bg-destructive" />
                   {highPriorityCount} high priority
                 </span>
               )}
               {overdueCount > 0 && (
-                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                  <AlertTriangle className="h-4 w-4" />
                   {overdueCount} overdue
                 </span>
               )}
             </div>
           )}
 
-          {/* Filters */}
-          <div className="flex items-center justify-between px-5 py-2.5 border-b bg-muted/20">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-sm">
-                  <Filter className="h-3.5 w-3.5 mr-1.5" />
-                  Sort: {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel className="text-xs">Sort by</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setSortBy('priority')}>Priority</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy('time')}>Due Time</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy('module')}>Module</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
+          {/* Filters - removed sort dropdown */}
+          <div className="flex items-center justify-end px-6 py-3 border-b bg-muted/20">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-sm gap-1.5"
+              className="h-9 text-sm gap-2"
               onClick={() => setShowCompleted(!showCompleted)}
             >
-              {showCompleted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {showCompleted ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {showCompleted ? 'Hide' : 'Show'} done
             </Button>
           </div>
 
-          {/* Content */}
-          <ScrollArea className="max-h-[55vh]">
-            <div className="p-4 space-y-4">
+          {/* Content - increased max height */}
+          <ScrollArea className="max-h-[70vh]"> {/* Increased from 55vh */}
+            <div className="p-5 space-y-5"> {/* Increased padding and spacing */}
               {isLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <>
                   {/* Overdue Section */}
                   {overdueTasks.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <button
                         onClick={() => setShowOverdue(!showOverdue)}
-                        className="flex items-center gap-2 text-sm font-medium text-destructive w-full"
+                        className="flex items-center gap-2 text-base font-medium text-destructive w-full"
                       >
-                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTriangle className="h-5 w-5" />
                         <span>Overdue ({overdueTasks.length})</span>
-                        {showOverdue ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
+                        {showOverdue ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
                       </button>
                       
                       {showOverdue && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {overdueTasks.map((task, index) => (
                             <TaskCard 
                               key={task.id} 
@@ -619,13 +625,13 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
 
                   {/* Today's Tasks */}
                   {sortedTodayTasks.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {overdueTasks.length > 0 && (
-                        <div className="text-sm font-medium text-muted-foreground pt-1">
+                        <div className="text-base font-medium text-muted-foreground pt-2">
                           Due Today ({sortedTodayTasks.length})
                         </div>
                       )}
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {sortedTodayTasks.map((task, index) => {
                           const actualIndex = showOverdue ? overdueTasks.length + index : index;
                           return (
@@ -639,12 +645,12 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
                       </div>
                     </div>
                   ) : overdueTasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
-                        <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-5">
+                        <CheckCircle2 className="w-12 h-12 text-emerald-500" />
                       </div>
-                      <p className="font-semibold text-lg text-foreground">All caught up!</p>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="font-semibold text-xl text-foreground">All caught up!</p>
+                      <p className="text-base text-muted-foreground mt-2">
                         No tasks due today. Enjoy your day! 🎉
                       </p>
                     </div>
@@ -655,20 +661,20 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           </ScrollArea>
 
           {/* Footer */}
-          <div className="flex justify-between items-center p-4 border-t bg-muted/20">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+          <div className="flex justify-between items-center p-5 border-t bg-muted/20">
+            <label className="flex items-center gap-2.5 text-sm text-muted-foreground cursor-pointer">
               <Checkbox 
                 checked={dontShowToday}
                 onCheckedChange={(checked) => setDontShowToday(checked as boolean)}
               />
               Don't show again today
             </label>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleClose}>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="default" onClick={handleClose}>
                 Dismiss
               </Button>
               <Button 
-                size="sm" 
+                size="default" 
                 onClick={() => {
                   handleClose();
                   navigate('/tasks');
@@ -692,6 +698,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
               // Refresh tasks when modal closes
               queryClient.invalidateQueries({ queryKey: ['todays-tasks'] });
               queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+              queryClient.invalidateQueries({ queryKey: ['pending-tasks-check'] });
             }
           }}
           task={selectedTask}
@@ -699,6 +706,7 @@ export const DailyTasksPopup = ({ onViewTask }: DailyTasksPopupProps) => {
           onUpdate={() => {
             queryClient.invalidateQueries({ queryKey: ['todays-tasks'] });
             queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-tasks-check'] });
           }}
         />
       )}

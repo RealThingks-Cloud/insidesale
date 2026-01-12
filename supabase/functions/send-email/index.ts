@@ -254,14 +254,17 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Create email history record first to get the ID for tracking
+    // Status starts as "sent" - will be updated to "delivered" after successful send
+    // or "bounced" if a bounce is detected
     const emailHistoryData: any = {
       recipient_email: to,
       recipient_name: toName || to,
       sender_email: from,
       subject: subject,
       body: body,
-      status: "sent",
+      status: "sent", // Keep as "sent" - delivery confirmation comes later
       sent_by: userId,
+      is_valid_open: true, // Default to true, will be set to false if bot detected
     };
 
     // Add entity references if provided
@@ -292,16 +295,34 @@ const handler = async (req: Request): Promise<Response> => {
     // Send email via Microsoft Graph API with tracking pixel and click tracking
     await sendEmail(accessToken, { to, subject, body, toName, from, attachments }, emailRecord.id);
 
-    // Update email history to mark as delivered
+    // Update email history to mark as sent (NOT delivered - we can't confirm delivery)
+    // Email will transition to "opened" when tracking pixel loads, or "bounced" if NDR detected
     await supabase
       .from("email_history")
       .update({ 
-        status: "delivered",
-        delivered_at: new Date().toISOString()
+        status: "sent",
+        is_valid_open: true
       })
       .eq("id", emailRecord.id);
 
-    console.log(`Email marked as delivered for record: ${emailRecord.id}`);
+    console.log(`Email marked as sent for record: ${emailRecord.id}`);
+
+    // Queue a bounce check for 45 seconds from now (auto bounce detection)
+    const checkAfter = new Date(Date.now() + 45000).toISOString();
+    const { error: queueError } = await supabase
+      .from("pending_bounce_checks")
+      .insert({
+        email_history_id: emailRecord.id,
+        sender_email: from,
+        recipient_email: to,
+        check_after: checkAfter,
+      });
+
+    if (queueError) {
+      console.warn("Failed to queue bounce check:", queueError);
+    } else {
+      console.log(`Queued bounce check for ${to} at ${checkAfter}`);
+    }
 
     return new Response(
       JSON.stringify({ 

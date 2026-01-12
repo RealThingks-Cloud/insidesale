@@ -125,6 +125,8 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
         const personalizedSubject = replaceVariables(subject.trim(), recipient);
         const personalizedBody = replaceVariables(body.trim(), recipient);
 
+        // Pass entityType and entityId so send-email creates the email_history record
+        // with proper association - no need to create a duplicate record client-side
         const { data, error } = await supabase.functions.invoke('send-email', {
           body: {
             to: recipient.email,
@@ -132,24 +134,12 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
             subject: personalizedSubject,
             body: personalizedBody,
             from: senderEmail,
+            entityType: recipient.type,
+            entityId: recipient.id,
           },
         });
 
         if (error) throw error;
-
-        // Log email to history
-        await supabase.from('email_history').insert({
-          recipient_email: recipient.email!,
-          recipient_name: recipient.name,
-          subject: personalizedSubject,
-          body: personalizedBody,
-          sender_email: senderEmail,
-          sent_by: user?.id,
-          lead_id: recipient.type === 'lead' ? recipient.id : null,
-          contact_id: recipient.type === 'contact' ? recipient.id : null,
-          account_id: recipient.type === 'account' ? recipient.id : null,
-          status: 'sent',
-        });
 
         successCount++;
       } catch (error) {

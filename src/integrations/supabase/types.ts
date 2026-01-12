@@ -937,12 +937,17 @@ export type Database = {
         Row: {
           account_id: string | null
           body: string | null
+          bounce_reason: string | null
+          bounce_type: string | null
+          bounced_at: string | null
           click_count: number | null
           clicked_at: string | null
           contact_id: string | null
           created_at: string
           delivered_at: string | null
+          first_open_ip: string | null
           id: string
+          is_valid_open: boolean | null
           lead_id: string | null
           open_count: number | null
           opened_at: string | null
@@ -953,17 +958,23 @@ export type Database = {
           sent_by: string | null
           status: string
           subject: string
+          unique_opens: number | null
           updated_at: string
         }
         Insert: {
           account_id?: string | null
           body?: string | null
+          bounce_reason?: string | null
+          bounce_type?: string | null
+          bounced_at?: string | null
           click_count?: number | null
           clicked_at?: string | null
           contact_id?: string | null
           created_at?: string
           delivered_at?: string | null
+          first_open_ip?: string | null
           id?: string
+          is_valid_open?: boolean | null
           lead_id?: string | null
           open_count?: number | null
           opened_at?: string | null
@@ -974,17 +985,23 @@ export type Database = {
           sent_by?: string | null
           status?: string
           subject: string
+          unique_opens?: number | null
           updated_at?: string
         }
         Update: {
           account_id?: string | null
           body?: string | null
+          bounce_reason?: string | null
+          bounce_type?: string | null
+          bounced_at?: string | null
           click_count?: number | null
           clicked_at?: string | null
           contact_id?: string | null
           created_at?: string
           delivered_at?: string | null
+          first_open_ip?: string | null
           id?: string
+          is_valid_open?: boolean | null
           lead_id?: string | null
           open_count?: number | null
           opened_at?: string | null
@@ -995,6 +1012,7 @@ export type Database = {
           sent_by?: string | null
           status?: string
           subject?: string
+          unique_opens?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1638,6 +1656,47 @@ export type Database = {
           user_access?: boolean
         }
         Relationships: []
+      }
+      pending_bounce_checks: {
+        Row: {
+          check_after: string
+          check_result: string | null
+          checked: boolean | null
+          created_at: string | null
+          email_history_id: string | null
+          id: string
+          recipient_email: string
+          sender_email: string
+        }
+        Insert: {
+          check_after: string
+          check_result?: string | null
+          checked?: boolean | null
+          created_at?: string | null
+          email_history_id?: string | null
+          id?: string
+          recipient_email: string
+          sender_email: string
+        }
+        Update: {
+          check_after?: string
+          check_result?: string | null
+          checked?: boolean | null
+          created_at?: string | null
+          email_history_id?: string | null
+          id?: string
+          recipient_email?: string
+          sender_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_bounce_checks_email_history_id_fkey"
+            columns: ["email_history_id"]
+            isOneToOne: false
+            referencedRelation: "email_history"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipeline_stages: {
         Row: {

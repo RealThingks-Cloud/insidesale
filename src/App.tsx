@@ -14,6 +14,7 @@ import { useState, lazy, Suspense, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeSync } from "@/components/RealtimeSync";
+import { BounceCheckWorker } from "@/components/email/BounceCheckWorker";
 
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -187,6 +188,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return (
     <FixedSidebarLayout>
       <RealtimeSync />
+      <BounceCheckWorker />
       <PageAccessGuard>
         <Suspense fallback={<ContentLoader />}>
           {children}
