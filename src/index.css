@@ -50,23 +50,23 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    /* Stage Colors - Professional muted tones */
-    --stage-lead: 220 25% 90%;
-    --stage-lead-foreground: 220 25% 35%;
-    --stage-discussions: 200 20% 90%;
-    --stage-discussions-foreground: 200 20% 35%;
-    --stage-qualified: 210 25% 90%;
-    --stage-qualified-foreground: 210 25% 35%;
-    --stage-rfq: 215 20% 88%;
-    --stage-rfq-foreground: 215 20% 35%;
-    --stage-offered: 35 20% 90%;
-    --stage-offered-foreground: 35 25% 35%;
-    --stage-won: 150 20% 90%;
-    --stage-won-foreground: 150 25% 35%;
-    --stage-lost: 0 15% 90%;
-    --stage-lost-foreground: 0 20% 40%;
-    --stage-dropped: 0 0% 90%;
-    --stage-dropped-foreground: 0 0% 40%;
+    /* Stage Colors - Vibrant and visible */
+    --stage-lead: 220 70% 85%;
+    --stage-lead-foreground: 220 80% 25%;
+    --stage-discussions: 200 65% 82%;
+    --stage-discussions-foreground: 200 75% 25%;
+    --stage-qualified: 260 60% 85%;
+    --stage-qualified-foreground: 260 70% 30%;
+    --stage-rfq: 180 55% 80%;
+    --stage-rfq-foreground: 180 65% 25%;
+    --stage-offered: 35 80% 80%;
+    --stage-offered-foreground: 35 85% 25%;
+    --stage-won: 142 65% 80%;
+    --stage-won-foreground: 142 75% 25%;
+    --stage-lost: 0 70% 85%;
+    --stage-lost-foreground: 0 75% 30%;
+    --stage-dropped: 0 0% 80%;
+    --stage-dropped-foreground: 0 0% 30%;
 
     /* Light Blue Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(204 94% 50%), hsl(204 94% 55%));

@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
-import { Users, Lock, GitBranch, Plug, Database, Shield, Activity, FileText, Megaphone, CheckSquare, Palette } from 'lucide-react';
+import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, Palette, History } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -10,20 +10,18 @@ import SettingsLoadingSkeleton from './shared/SettingsLoadingSkeleton';
 // Lazy load admin section components
 const UserManagement = lazy(() => import('@/components/UserManagement'));
 const PageAccessSettings = lazy(() => import('@/components/settings/PageAccessSettings'));
-const PipelineSettings = lazy(() => import('@/components/settings/PipelineSettings'));
-const IntegrationSettings = lazy(() => import('@/components/settings/IntegrationSettings'));
 const BackupRestoreSettings = lazy(() => import('@/components/settings/BackupRestoreSettings'));
 const AuditLogsSettings = lazy(() => import('@/components/settings/AuditLogsSettings'));
 const SystemStatusSettings = lazy(() => import('@/components/settings/SystemStatusSettings'));
 const ScheduledReportsSettings = lazy(() => import('@/components/settings/ScheduledReportsSettings'));
 const AnnouncementSettings = lazy(() => import('@/components/settings/AnnouncementSettings'));
-const ApprovalWorkflowSettings = lazy(() => import('@/components/settings/ApprovalWorkflowSettings'));
 const BrandingSettings = lazy(() => import('@/components/settings/BrandingSettings'));
 
 const adminTabs = [
   { id: 'users', label: 'Users', icon: Users },
   { id: 'access', label: 'Access', icon: Lock },
   { id: 'config', label: 'Config', icon: Settings2 },
+  { id: 'logs', label: 'Logs', icon: History },
   { id: 'system', label: 'System', icon: Activity },
   { id: 'reports', label: 'Reports', icon: BarChart3 }
 ];
@@ -40,12 +38,9 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
     const sectionToTab: Record<string, string> = {
       'users': 'users',
       'page-access': 'access',
-      'pipeline': 'config',
-      'integrations': 'config',
       'branding': 'config',
-      'approval-workflows': 'config',
+      'audit-logs': 'logs',
       'backup': 'system',
-      'audit-logs': 'system',
       'system-status': 'system',
       'scheduled-reports': 'reports',
       'announcements': 'reports'
@@ -91,7 +86,7 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
   return (
     <div className="space-y-6 max-w-6xl">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-2xl">
           {adminTabs.map(tab => {
             const Icon = tab.icon;
             return (
@@ -120,24 +115,6 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
         </TabsContent>
 
         <TabsContent value="config" className="mt-6 space-y-6">
-          <SettingsCard icon={GitBranch} title="Pipeline & Status Management" description="Customize deal stages and lead statuses">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <PipelineSettings />
-            </Suspense>
-          </SettingsCard>
-
-          <SettingsCard icon={Plug} title="Third-Party Integrations" description="Connect with Microsoft Teams, Email, and Calendar">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <IntegrationSettings />
-            </Suspense>
-          </SettingsCard>
-
-          <SettingsCard icon={CheckSquare} title="Approval Workflows" description="Configure multi-step approval processes">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <ApprovalWorkflowSettings />
-            </Suspense>
-          </SettingsCard>
-
           <SettingsCard icon={Palette} title="Branding Settings" description="Customize app logo, colors, and appearance">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
               <BrandingSettings />
@@ -145,16 +122,16 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
           </SettingsCard>
         </TabsContent>
 
+        <TabsContent value="logs" className="mt-6 space-y-6">
+          <Suspense fallback={<SettingsLoadingSkeleton />}>
+            <AuditLogsSettings />
+          </Suspense>
+        </TabsContent>
+
         <TabsContent value="system" className="mt-6 space-y-6">
           <SettingsCard icon={Database} title="Data Backup & Restore" description="Export data and manage backups">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
               <BackupRestoreSettings />
-            </Suspense>
-          </SettingsCard>
-
-          <SettingsCard icon={Shield} title="Audit Logs" description="View system activity and security events">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <AuditLogsSettings />
             </Suspense>
           </SettingsCard>
 
