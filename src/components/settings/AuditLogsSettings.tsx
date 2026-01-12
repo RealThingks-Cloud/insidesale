@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   Download, Search, AlertTriangle, Activity, FileText, Undo, 
   Calendar, ChevronDown, Shield, UserCheck, Database, Settings,
-  Clock, AlertCircle, Info, CheckCircle, Eye, X
+  Clock, AlertCircle, Info, CheckCircle, Eye, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -109,6 +109,10 @@ const AuditLogsSettings = () => {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailLog, setDetailLog] = useState<AuditLog | null>(null);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  
   // Date range state
   const [datePreset, setDatePreset] = useState('7');
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 7));
@@ -132,14 +136,18 @@ const AuditLogsSettings = () => {
     filterLogs();
   }, [logs, searchTerm, actionFilter, resourceFilter, startDate, endDate, showSessionLogs, resolvedNames]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, actionFilter, resourceFilter, startDate, endDate, showSessionLogs]);
+
   const fetchAuditLogs = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('security_audit_log')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(2000);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -390,6 +398,12 @@ const AuditLogsSettings = () => {
     setFilteredLogs(filtered);
   };
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredLogs.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredLogs.length);
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
   const exportAuditTrail = async () => {
     try {
       const csvContent = [
@@ -607,21 +621,76 @@ const AuditLogsSettings = () => {
     return typeMap[resourceType] || resourceType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  // Statistics calculations
+  // Statistics calculations - now based on filteredLogs
   const stats = useMemo(() => {
     const today = startOfDay(new Date());
-    const logsToday = logs.filter(l => new Date(l.created_at) >= today);
+    const logsToday = filteredLogs.filter(l => new Date(l.created_at) >= today);
     
     return {
-      total: logs.length,
+      total: filteredLogs.length,
       today: logsToday.length,
-      creates: logs.filter(l => l.action === 'CREATE' || l.action === 'BULK_CREATE').length,
-      updates: logs.filter(l => l.action === 'UPDATE' || l.action === 'BULK_UPDATE').length,
-      deletes: logs.filter(l => l.action === 'DELETE' || l.action === 'BULK_DELETE').length,
-      userManagement: logs.filter(l => l.action.includes('USER') || l.action.includes('ROLE')).length,
-      settings: logs.filter(l => l.action.includes('SETTINGS_') || ['branding', 'announcements', 'email_templates'].includes(l.resource_type)).length,
+      creates: filteredLogs.filter(l => l.action === 'CREATE' || l.action === 'BULK_CREATE').length,
+      updates: filteredLogs.filter(l => l.action === 'UPDATE' || l.action === 'BULK_UPDATE').length,
+      deletes: filteredLogs.filter(l => l.action === 'DELETE' || l.action === 'BULK_DELETE').length,
+      userManagement: filteredLogs.filter(l => l.action.includes('USER') || l.action.includes('ROLE')).length,
+      settings: filteredLogs.filter(l => l.action.includes('SETTINGS_') || ['branding', 'announcements', 'email_templates'].includes(l.resource_type)).length,
     };
-  }, [logs]);
+  }, [filteredLogs]);
+
+  // Format user-friendly detail summary
+  const getDetailSummary = (log: AuditLog) => {
+    const details = log.details;
+    if (!details) return null;
+
+    const summaryItems: { label: string; value: string }[] = [];
+
+    // Add record count for bulk operations
+    if (details.count) {
+      summaryItems.push({ label: 'Records Affected', value: String(details.count) });
+    }
+
+    // Add module info
+    if (details.module) {
+      summaryItems.push({ label: 'Module', value: details.module });
+    }
+
+    // Add record name if available
+    if (details.record_name) {
+      summaryItems.push({ label: 'Record Name', value: details.record_name });
+    }
+
+    // Add export/import info
+    if (details.export_type) {
+      summaryItems.push({ label: 'Export Type', value: details.export_type });
+    }
+    if (details.file_name) {
+      summaryItems.push({ label: 'File Name', value: details.file_name });
+    }
+
+    // Add user management info
+    if (details.target_user) {
+      summaryItems.push({ label: 'Target User', value: resolvedNames.users[details.target_user] || details.target_user });
+    }
+    if (details.new_role) {
+      summaryItems.push({ label: 'New Role', value: details.new_role });
+    }
+    if (details.old_role) {
+      summaryItems.push({ label: 'Previous Role', value: details.old_role });
+    }
+
+    // Add session info
+    if (details.browser) {
+      summaryItems.push({ label: 'Browser', value: details.browser });
+    }
+    if (details.os) {
+      summaryItems.push({ label: 'Operating System', value: details.os });
+    }
+    if (details.device) {
+      summaryItems.push({ label: 'Device', value: details.device });
+    }
+
+    return summaryItems.length > 0 ? summaryItems : null;
+  };
 
   return (
     <div className="space-y-6">
@@ -721,9 +790,31 @@ const AuditLogsSettings = () => {
             </div>
           </div>
 
-          {/* Results count */}
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredLogs.length} of {logs.length} logs
+          {/* Results count and page size selector */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Showing {filteredLogs.length > 0 ? startIndex + 1 : 0}-{endIndex} of {filteredLogs.length} logs
+              {logs.length !== filteredLogs.length && ` (filtered from ${logs.length} total)`}
+            </span>
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground">Per page:</Label>
+              <Select 
+                value={String(pageSize)} 
+                onValueChange={(v) => { 
+                  setPageSize(Number(v)); 
+                  setCurrentPage(1); 
+                }}
+              >
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Logs Table */}
@@ -745,7 +836,7 @@ const AuditLogsSettings = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.slice(0, 100).map(log => {
+                  {paginatedLogs.map(log => {
                     const userName = getUserName(log.user_id);
                     const recordName = getRecordName(log.resource_type, log.resource_id || '');
                     const isAuthLog = log.action.includes('SESSION_') || log.action.includes('LOGIN') || log.action.includes('LOGOUT');
@@ -848,11 +939,70 @@ const AuditLogsSettings = () => {
                 </div>
               )}
               
-              {filteredLogs.length > 100 && (
-                <div className="text-center py-3 border-t bg-muted/50">
-                  <p className="text-sm text-muted-foreground">
-                    Showing first 100 of {filteredLogs.length} logs. Use filters to narrow results or export for full data.
-                  </p>
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between py-3 px-4 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setCurrentPage(1)} 
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>First Page</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Previous Page</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Next Page</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setCurrentPage(totalPages)} 
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Last Page</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               )}
             </div>
@@ -865,7 +1015,7 @@ const AuditLogsSettings = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5" />
-            Log Statistics
+            Log Statistics {filteredLogs.length !== logs.length && <span className="text-sm font-normal text-muted-foreground">(filtered view)</span>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -950,6 +1100,21 @@ const AuditLogsSettings = () => {
                   )}
                 </div>
 
+                {/* User-friendly Detail Summary */}
+                {getDetailSummary(detailLog) && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">Additional Information</Label>
+                    <div className="border rounded-lg p-3 space-y-2">
+                      {getDetailSummary(detailLog)?.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{item.label}:</span>
+                          <span className="font-medium">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Field Changes */}
                 {detailLog.details?.field_changes && Object.keys(detailLog.details.field_changes).length > 0 && (
                   <div>
@@ -980,14 +1145,6 @@ const AuditLogsSettings = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Raw Details */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-2 block">Raw Details</Label>
-                  <pre className="text-xs p-3 bg-muted rounded-lg overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(detailLog.details, null, 2)}
-                  </pre>
-                </div>
               </div>
             </ScrollArea>
           )}
