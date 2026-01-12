@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -24,7 +25,6 @@ import {
   XCircle,
   CheckCircle,
   Send,
-  Users,
   ChevronDown,
   MailX,
   Info,
@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { EmailReplyModal } from '@/components/email/EmailReplyModal';
 
 interface EmailHistoryItem {
   id: string;
@@ -163,6 +164,10 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [replies, setReplies] = useState<EmailReply[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
+  
+  // Reply modal state
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [replyToData, setReplyToData] = useState<{ from_email: string; from_name: string | null; body_preview?: string | null; received_at?: string; subject?: string | null } | undefined>(undefined);
 
   const fetchEmails = async () => {
     setLoading(true);
@@ -270,6 +275,29 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
       setShowTechnicalDetails(false);
     }
   }, [selectedEmail]);
+
+  // Handle reply to original email
+  const handleReplyToEmail = (email: EmailHistoryItem) => {
+    setReplyToData(undefined);
+    setShowReplyModal(true);
+  };
+
+  // Handle reply to a specific reply in the thread
+  const handleReplyToReply = (reply: EmailReply) => {
+    setReplyToData({
+      from_email: reply.from_email,
+      from_name: reply.from_name,
+      body_preview: reply.body_preview,
+      received_at: reply.received_at,
+      subject: reply.subject,
+    });
+    setShowReplyModal(true);
+  };
+
+  // Check if email can be replied to
+  const canReplyToEmail = (email: EmailHistoryItem) => {
+    return !email.bounce_type && email.status !== 'failed' && email.status !== 'bounced';
+  };
 
   const getStatusBadge = (email: EmailHistoryItem) => {
     const { status, bounce_type, reply_count } = email;
@@ -481,28 +509,30 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
           
           {selectedEmail && (
             <div className="space-y-5">
-              {/* Subject and Status */}
-              <div className="space-y-3">
+              {/* Standardized Layout: From -> To -> Subject */}
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">From</p>
+                    <p className="text-sm mt-0.5 font-medium">{selectedEmail.sender_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">To</p>
+                    <p className="text-sm mt-0.5 font-medium">
+                      {selectedEmail.recipient_name || "Unknown"} ({selectedEmail.recipient_email})
+                    </p>
+                  </div>
+                </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subject</p>
                   <p className="text-base font-medium mt-1">{selectedEmail.subject}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status:</span>
-                  {getStatusBadge(selectedEmail)}
-                </div>
               </div>
 
-              {/* From/To Grid */}
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/30 rounded-lg">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">From</p>
-                  <p className="text-sm mt-0.5">{selectedEmail.sender_email}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">To</p>
-                  <p className="text-sm mt-0.5">{selectedEmail.recipient_name || selectedEmail.recipient_email}</p>
-                </div>
+              {/* Status Row */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status:</span>
+                {getStatusBadge(selectedEmail)}
               </div>
 
               {/* Dates Grid */}
@@ -636,13 +666,32 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                           <CardContent className="p-3">
                             <div className="flex justify-between items-start mb-2">
                               <span className="font-medium text-sm">
-                                {reply.from_name || reply.from_email}
+                                {reply.from_name || reply.from_email} ({reply.from_email})
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {format(new Date(reply.received_at), 'dd/MM/yyyy HH:mm')}
                               </span>
                             </div>
+                            <div className="text-xs text-muted-foreground mb-2">
+                              To: {selectedEmail.sender_email}
+                            </div>
                             <p className="text-sm text-muted-foreground">{reply.body_preview || 'No preview available'}</p>
+                            
+                            {/* Reply to this reply button */}
+                            <div className="mt-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyToReply(reply);
+                                }}
+                                className="gap-1 h-7 text-xs"
+                              >
+                                <Reply className="h-3 w-3" />
+                                Reply
+                              </Button>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -676,10 +725,49 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                   />
                 </div>
               )}
+
+              {/* Reply button for successfully delivered emails */}
+              {canReplyToEmail(selectedEmail) && (
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReplyToEmail(selectedEmail)}
+                  >
+                    <Reply className="h-4 w-4 mr-2" />
+                    Reply
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reply Modal */}
+      {selectedEmail && (
+        <EmailReplyModal
+          open={showReplyModal}
+          onOpenChange={setShowReplyModal}
+          originalEmail={{
+            id: selectedEmail.id,
+            recipient_email: selectedEmail.recipient_email,
+            recipient_name: selectedEmail.recipient_name,
+            sender_email: selectedEmail.sender_email,
+            subject: selectedEmail.subject,
+            body: selectedEmail.body,
+            sent_at: selectedEmail.sent_at,
+            contact_id: selectedEmail.contact_id,
+            lead_id: selectedEmail.lead_id,
+            account_id: selectedEmail.account_id,
+          }}
+          replyTo={replyToData}
+          onReplySent={() => {
+            fetchEmails();
+            setShowReplyModal(false);
+          }}
+        />
+      )}
     </>
   );
 };
