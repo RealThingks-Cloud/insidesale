@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Mail, Search, Eye, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight, RotateCcw, Loader2, Download, Calendar, AlertTriangle, XCircle, CheckCircle2, Send, Ban, MailX, ChevronDown, Info, Reply } from "lucide-react";
 import { format } from "date-fns";
+import { EmailReplyModal } from "@/components/email/EmailReplyModal";
 
 interface EmailHistoryRecord {
   id: string;
@@ -142,6 +143,10 @@ const EmailHistorySettings = () => {
   const [replies, setReplies] = useState<EmailReply[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
+  
+  // Reply modal state
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [replyToData, setReplyToData] = useState<{ from_email: string; from_name: string | null; body_preview?: string | null; received_at?: string; subject?: string | null } | undefined>(undefined);
 
   useEffect(() => {
     fetchEmailHistory();
@@ -360,6 +365,24 @@ const EmailHistorySettings = () => {
     } finally {
       setRetryingEmailId(null);
     }
+  };
+
+  // Handle reply to original email
+  const handleReplyToEmail = (email: EmailHistoryRecord) => {
+    setReplyToData(undefined);
+    setShowReplyModal(true);
+  };
+
+  // Handle reply to a specific reply in the thread
+  const handleReplyToReply = (reply: EmailReply) => {
+    setReplyToData({
+      from_email: reply.from_email,
+      from_name: reply.from_name,
+      body_preview: reply.body_preview,
+      received_at: reply.received_at,
+      subject: reply.subject,
+    });
+    setShowReplyModal(true);
   };
 
   const getEntityType = (email: EmailHistoryRecord): string => {
@@ -585,6 +608,11 @@ const EmailHistorySettings = () => {
     link.click();
   };
 
+  // Check if email can be replied to
+  const canReplyToEmail = (email: EmailHistoryRecord) => {
+    return !email.bounce_type && email.status !== 'failed' && email.status !== 'bounced';
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -787,8 +815,7 @@ const EmailHistorySettings = () => {
                         >
                           <TableCell>
                             <div>
-                              <p className="font-medium">{email.recipient_name || "Unknown"}</p>
-                              <p className="text-sm text-muted-foreground">{email.recipient_email}</p>
+                              <p className="font-medium">{email.recipient_name || "Unknown"} ({email.recipient_email})</p>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -921,21 +948,22 @@ const EmailHistorySettings = () => {
           </DialogHeader>
           {selectedEmail && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">To</p>
-                  <p className="font-medium">{selectedEmail.recipient_name || "Unknown"}</p>
-                  <p className="text-sm">{selectedEmail.recipient_email}</p>
+              {/* Standardized Layout: From -> To -> Subject */}
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">From</p>
+                    <p className="font-medium mt-1">{selectedEmail.sender_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">To</p>
+                    <p className="font-medium mt-1">{selectedEmail.recipient_name || "Unknown"} ({selectedEmail.recipient_email})</p>
+                  </div>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">From</p>
-                  <p className="font-medium">{selectedEmail.sender_email}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subject</p>
+                  <p className="font-medium mt-1">{selectedEmail.subject}</p>
                 </div>
-              </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground">Subject</p>
-                <p className="font-medium">{selectedEmail.subject}</p>
               </div>
 
               <div className="flex items-center gap-4">
@@ -1072,7 +1100,7 @@ const EmailHistorySettings = () => {
                             
                             {/* Email Content */}
                             <div className="p-4 bg-background">
-                              {/* Sender Row */}
+                              {/* Sender Row with email in brackets */}
                               <div className="flex items-start gap-3 mb-3">
                                 {/* Avatar/Initials */}
                                 <div className={`w-9 h-9 rounded-full ${getAvatarColor(reply.from_email)} flex items-center justify-center flex-shrink-0`}>
@@ -1080,18 +1108,15 @@ const EmailHistorySettings = () => {
                                 </div>
                                 
                                 <div className="flex-1 min-w-0">
-                                  {/* Sender name */}
+                                  {/* Sender name with email */}
                                   <div className="font-medium text-sm">
-                                    {reply.from_name || reply.from_email}
+                                    {reply.from_name || reply.from_email} ({reply.from_email})
                                   </div>
                                   
-                                  {/* To line */}
+                                  {/* To line - Fixed: show sender_email (original sender who receives the reply) */}
                                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                                     <span>To:</span>
-                                    <span className="inline-flex items-center">
-                                      <span className="w-3 h-3 rounded-full border border-muted-foreground/50 inline-block mr-1" />
-                                      {selectedEmail.recipient_name || selectedEmail.sender_email}
-                                    </span>
+                                    <span>{selectedEmail.sender_email}</span>
                                   </div>
                                 </div>
                                 
@@ -1124,6 +1149,22 @@ const EmailHistorySettings = () => {
                                   </CollapsibleContent>
                                 </Collapsible>
                               )}
+
+                              {/* Reply to this reply button */}
+                              <div className="mt-3 pl-12">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReplyToReply(reply);
+                                  }}
+                                  className="gap-1 h-7 text-xs"
+                                >
+                                  <Reply className="h-3 w-3" />
+                                  Reply
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1156,9 +1197,9 @@ const EmailHistorySettings = () => {
                 />
               </div>
 
-              {/* Actions - only retry for failed/bounced emails */}
-              {(selectedEmail.status === 'failed' || selectedEmail.bounce_type) && (
-                <div className="flex gap-2 pt-4 border-t">
+              {/* Actions - retry for failed/bounced, reply for delivered */}
+              <div className="flex gap-2 pt-4 border-t">
+                {(selectedEmail.status === 'failed' || selectedEmail.bounce_type) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1172,12 +1213,49 @@ const EmailHistorySettings = () => {
                     )}
                     Retry Sending
                   </Button>
-                </div>
-              )}
+                )}
+                
+                {/* Reply button for successfully delivered emails */}
+                {canReplyToEmail(selectedEmail) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReplyToEmail(selectedEmail)}
+                  >
+                    <Reply className="h-4 w-4 mr-2" />
+                    Reply
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reply Modal */}
+      {selectedEmail && (
+        <EmailReplyModal
+          open={showReplyModal}
+          onOpenChange={setShowReplyModal}
+          originalEmail={{
+            id: selectedEmail.id,
+            recipient_email: selectedEmail.recipient_email,
+            recipient_name: selectedEmail.recipient_name,
+            sender_email: selectedEmail.sender_email,
+            subject: selectedEmail.subject,
+            body: selectedEmail.body,
+            sent_at: selectedEmail.sent_at,
+            contact_id: selectedEmail.contact_id,
+            lead_id: selectedEmail.lead_id,
+            account_id: selectedEmail.account_id,
+          }}
+          replyTo={replyToData}
+          onReplySent={() => {
+            fetchEmailHistory();
+            setShowReplyModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };

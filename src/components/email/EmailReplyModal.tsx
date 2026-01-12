@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,72 +6,94 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Send, Loader2, Paperclip, X, FileIcon } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Mail, Send, Loader2, Paperclip, X, FileIcon, ChevronDown, Reply } from "lucide-react";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
+import { format } from "date-fns";
 
-// Generic recipient interface that works with contacts, leads, and accounts
-export interface EmailRecipient {
-  name: string;
-  email?: string;
-  company_name?: string;
-  position?: string;
-}
-
-interface EmailTemplate {
-  id: string;
-  name: string;
+interface OriginalEmailData {
+  id?: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  sender_email: string;
   subject: string;
-  body: string;
+  body?: string | null;
+  sent_at?: string;
+  contact_id?: string | null;
+  lead_id?: string | null;
+  account_id?: string | null;
 }
 
-interface SendEmailModalProps {
+interface ReplyToData {
+  from_email: string;
+  from_name: string | null;
+  body_preview?: string | null;
+  received_at?: string;
+  subject?: string | null;
+}
+
+interface EmailReplyModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  recipient: EmailRecipient | null;
-  contactId?: string | null;
-  leadId?: string | null;
-  accountId?: string | null;
-  onEmailSent?: () => void;
-  // Legacy prop for backwards compatibility
-  contact?: {
-    contact_name: string;
-    company_name?: string;
-    position?: string;
-    email?: string;
-  } | null;
+  originalEmail: OriginalEmailData;
+  replyTo?: ReplyToData; // For replying to a specific reply in the thread
+  onReplySent?: () => void;
 }
 
-export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadId, accountId, onEmailSent, contact }: SendEmailModalProps) => {
+export const EmailReplyModal = ({ 
+  open, 
+  onOpenChange, 
+  originalEmail, 
+  replyTo,
+  onReplySent 
+}: EmailReplyModalProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [showOriginalMessage, setShowOriginalMessage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const senderEmail = user?.email || "noreply@acmecrm.com";
 
-  // Use recipient or convert legacy contact prop
-  const emailRecipient: EmailRecipient | null = recipient || (contact ? {
-    name: contact.contact_name,
-    email: contact.email,
-    company_name: contact.company_name,
-    position: contact.position,
-  } : null);
+  // Determine reply-to address and name
+  const replyToEmail = replyTo?.from_email || originalEmail.recipient_email;
+  const replyToName = replyTo?.from_name || originalEmail.recipient_name;
 
-  useEffect(() => {
+  // Build the reply subject
+  const getReplySubject = () => {
+    const baseSubject = replyTo?.subject || originalEmail.subject;
+    if (baseSubject.toLowerCase().startsWith('re:')) {
+      return baseSubject;
+    }
+    return `Re: ${baseSubject}`;
+  };
+
+  // Build quoted message
+  const getQuotedMessage = () => {
+    if (replyTo) {
+      const date = replyTo.received_at ? format(new Date(replyTo.received_at), 'PPp') : '';
+      const from = replyTo.from_name || replyTo.from_email;
+      return `\n\n---\nOn ${date}, ${from} wrote:\n> ${replyTo.body_preview || ''}`;
+    }
+    
+    const date = originalEmail.sent_at ? format(new Date(originalEmail.sent_at), 'PPp') : '';
+    const to = originalEmail.recipient_name || originalEmail.recipient_email;
+    const strippedBody = originalEmail.body?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+    return `\n\n---\nOn ${date}, to ${to}:\n> ${strippedBody}`;
+  };
+
+  // Initialize state when modal opens
+  useState(() => {
     if (open) {
-      fetchTemplates();
-      setSelectedTemplate("");
-      setSubject("");
+      setSubject(getReplySubject());
       setBody("");
       setAttachments([]);
+      setShowOriginalMessage(false);
     }
-  }, [open]);
+  });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -93,7 +115,6 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
       
       setAttachments(prev => [...prev, ...validFiles]);
     }
-    // Reset input so same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -115,7 +136,6 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:image/png;base64,")
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -123,52 +143,11 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
     });
   };
 
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('email_templates')
-        .select('id, name, subject, body')
-        .order('name');
-
-      if (error) throw error;
-      setTemplates(data || []);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-    }
-  };
-
-  const replaceVariables = (text: string, recipientData: EmailRecipient | null) => {
-    if (!recipientData) return text;
-    
-    return text
-      .replace(/\{\{contact_name\}\}/g, recipientData.name || '')
-      .replace(/\{\{name\}\}/g, recipientData.name || '')
-      .replace(/\{\{company_name\}\}/g, recipientData.company_name || '')
-      .replace(/\{\{position\}\}/g, recipientData.position || '')
-      .replace(/\{\{email\}\}/g, recipientData.email || '');
-  };
-
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplate(templateId);
-    
-    if (templateId === "none") {
-      setSubject("");
-      setBody("");
-      return;
-    }
-
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      setSubject(replaceVariables(template.subject, emailRecipient));
-      setBody(replaceVariables(template.body, emailRecipient));
-    }
-  };
-
-  const handleSendEmail = async () => {
-    if (!emailRecipient?.email) {
+  const handleSendReply = async () => {
+    if (!replyToEmail) {
       toast({
-        title: "No email address",
-        description: "This recipient doesn't have an email address",
+        title: "No recipient",
+        description: "Cannot determine reply recipient",
         variant: "destructive",
       });
       return;
@@ -177,7 +156,7 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
     if (!subject.trim()) {
       toast({
         title: "Subject required",
-        description: "Please enter an email subject",
+        description: "Please enter a subject",
         variant: "destructive",
       });
       return;
@@ -195,14 +174,16 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
         }))
       );
 
-      // Determine entity type and id
-      const entityType = contactId ? 'contact' : leadId ? 'lead' : accountId ? 'account' : undefined;
-      const entityId = contactId || leadId || accountId || undefined;
+      // Determine entity type and id from original email
+      const entityType = originalEmail.contact_id ? 'contact' : 
+                         originalEmail.lead_id ? 'lead' : 
+                         originalEmail.account_id ? 'account' : undefined;
+      const entityId = originalEmail.contact_id || originalEmail.lead_id || originalEmail.account_id || undefined;
 
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
-          to: emailRecipient.email,
-          toName: emailRecipient.name,
+          to: replyToEmail,
+          toName: replyToName,
           subject: subject.trim(),
           body: body.trim(),
           from: senderEmail,
@@ -218,32 +199,18 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
         throw new Error(data.error);
       }
 
-      // Update last_contacted_at for the contact (email history is created by the edge function)
-      if (contactId) {
-        try {
-          await supabase
-            .from('contacts')
-            .update({
-              last_contacted_at: new Date().toISOString(),
-            })
-            .eq('id', contactId);
-        } catch (updateError) {
-          console.error('Error updating contact last_contacted_at:', updateError);
-        }
-      }
-
       toast({
-        title: "Email Sent",
-        description: `Email successfully sent to ${emailRecipient.name}`,
+        title: "Reply Sent",
+        description: `Reply sent to ${replyToName || replyToEmail}`,
       });
       
-      onEmailSent?.();
+      onReplySent?.();
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Error sending email:', error);
+      console.error('Error sending reply:', error);
       toast({
-        title: "Failed to send email",
-        description: error.message || "An error occurred while sending the email",
+        title: "Failed to send reply",
+        description: error.message || "An error occurred while sending the reply",
         variant: "destructive",
       });
     } finally {
@@ -251,19 +218,18 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
     }
   };
 
-  if (!emailRecipient) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Send Email to {emailRecipient.name}
+            <Reply className="h-5 w-5" />
+            Reply to {replyToName || replyToEmail}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* From/To Display with emails in brackets */}
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-muted/50 rounded-lg">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">From</Label>
@@ -272,52 +238,66 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
             <div className="p-3 bg-muted/50 rounded-lg">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">To</Label>
               <p className="font-medium text-sm mt-1">
-                {emailRecipient.name} ({emailRecipient.email || "No email"})
+                {replyToName || "Unknown"} ({replyToEmail})
               </p>
             </div>
           </div>
 
+          {/* Subject */}
           <div className="space-y-2">
-            <Label htmlFor="template">Email Template</Label>
-            <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a template (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No template</SelectItem>
-                {templates.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {templates.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No templates available. Create templates in Settings → Email Templates.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="subject">Subject *</Label>
+            <Label htmlFor="reply-subject">Subject *</Label>
             <Input
-              id="subject"
+              id="reply-subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject"
             />
           </div>
 
+          {/* Message Body */}
           <div className="space-y-2">
-            <Label htmlFor="body">Message</Label>
+            <Label htmlFor="reply-body">Message</Label>
             <RichTextEditor
               value={body}
               onChange={setBody}
-              placeholder="Email message..."
+              placeholder="Type your reply..."
             />
           </div>
 
+          {/* Quoted Original Message */}
+          <Collapsible open={showOriginalMessage} onOpenChange={setShowOriginalMessage}>
+            <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronDown className={`h-4 w-4 transition-transform ${showOriginalMessage ? 'rotate-180' : ''}`} />
+              <Mail className="h-4 w-4" />
+              {showOriginalMessage ? 'Hide' : 'Show'} original message
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="text-sm text-muted-foreground border-l-2 border-muted pl-3 py-2 bg-muted/30 rounded-r">
+                <p className="font-medium mb-1">
+                  {replyTo 
+                    ? `From: ${replyTo.from_name || replyTo.from_email} (${replyTo.from_email})`
+                    : `To: ${originalEmail.recipient_name || "Unknown"} (${originalEmail.recipient_email})`
+                  }
+                </p>
+                <p className="text-xs mb-2">
+                  {replyTo?.received_at 
+                    ? format(new Date(replyTo.received_at), 'PPp')
+                    : originalEmail.sent_at 
+                      ? format(new Date(originalEmail.sent_at), 'PPp')
+                      : ''
+                  }
+                </p>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: replyTo?.body_preview || originalEmail.body || 'No content' 
+                  }}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Attachments */}
           <div className="space-y-2">
             <Label>Attachments</Label>
             <div className="flex items-center gap-2">
@@ -327,7 +307,7 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
                 multiple
                 onChange={handleFileSelect}
                 className="hidden"
-                id="email-attachments"
+                id="reply-attachments"
               />
               <Button
                 type="button"
@@ -373,13 +353,14 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-4 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
               Cancel
             </Button>
             <Button 
-              onClick={handleSendEmail} 
-              disabled={!emailRecipient?.email || isSending}
+              onClick={handleSendReply} 
+              disabled={!replyToEmail || isSending}
               className="gap-2"
             >
               {isSending ? (
@@ -390,7 +371,7 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Send Email
+                  Send Reply
                 </>
               )}
             </Button>
@@ -400,3 +381,5 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
     </Dialog>
   );
 };
+
+export default EmailReplyModal;
