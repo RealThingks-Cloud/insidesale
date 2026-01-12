@@ -144,14 +144,39 @@ const AuditLogsSettings = () => {
   const fetchAuditLogs = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('security_audit_log')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      // Supabase/PostgREST responses are capped at 1000 rows per request.
+      // Fetch all rows in batches to ensure we always load the full audit trail.
+      const BATCH_SIZE = 1000;
+      const MAX_ROWS_SAFETY = 100000; // safety guard to avoid accidental infinite loops
 
-      const transformedLogs: AuditLog[] = (data || []).map(log => ({
+      let from = 0;
+      const allRows: any[] = [];
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('security_audit_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + BATCH_SIZE - 1);
+
+        if (error) throw error;
+
+        const batch = data || [];
+        allRows.push(...batch);
+
+        if (batch.length < BATCH_SIZE) break;
+
+        from += BATCH_SIZE;
+        if (from >= MAX_ROWS_SAFETY) {
+          console.warn(
+            `[AuditLogsSettings] Reached MAX_ROWS_SAFETY (${MAX_ROWS_SAFETY}). Stopping further fetches.`
+          );
+          break;
+        }
+      }
+
+      const transformedLogs: AuditLog[] = allRows.map((log) => ({
         id: log.id,
         user_id: log.user_id || '',
         action: log.action,
@@ -159,7 +184,7 @@ const AuditLogsSettings = () => {
         resource_id: log.resource_id || undefined,
         details: log.details || undefined,
         ip_address: log.ip_address ? String(log.ip_address) : undefined,
-        created_at: log.created_at
+        created_at: log.created_at,
       }));
 
       setLogs(transformedLogs);
@@ -168,7 +193,7 @@ const AuditLogsSettings = () => {
       toast({
         title: "Error",
         description: "Failed to fetch audit logs",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
