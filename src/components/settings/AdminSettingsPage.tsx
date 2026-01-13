@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
-import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, History } from 'lucide-react';
+import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, History, Zap, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -15,6 +15,8 @@ const AuditLogsSettings = lazy(() => import('@/components/settings/AuditLogsSett
 const SystemStatusSettings = lazy(() => import('@/components/settings/SystemStatusSettings'));
 const ScheduledReportsSettings = lazy(() => import('@/components/settings/ScheduledReportsSettings'));
 const AnnouncementSettings = lazy(() => import('@/components/settings/AnnouncementSettings'));
+const EdgeFunctionMonitor = lazy(() => import('@/components/settings/EdgeFunctionMonitor'));
+const CronJobMonitoring = lazy(() => import('@/components/settings/CronJobMonitoring'));
 
 const adminTabs = [
   { id: 'users', label: 'Users', icon: Users },
@@ -39,6 +41,8 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
       'audit-logs': 'logs',
       'backup': 'system',
       'system-status': 'system',
+      'edge-functions': 'system',
+      'cron-jobs': 'system',
       'scheduled-reports': 'reports',
       'announcements': 'reports'
     };
@@ -118,6 +122,18 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
         </TabsContent>
 
         <TabsContent value="system" className="mt-6 space-y-6">
+          <SettingsCard icon={Zap} title="Edge Functions" description="Monitor and test all backend edge functions">
+            <Suspense fallback={<SettingsLoadingSkeleton />}>
+              <EdgeFunctionMonitor />
+            </Suspense>
+          </SettingsCard>
+
+          <SettingsCard icon={Clock} title="Cron Jobs & Keep-Alive" description="Scheduled job status and database connectivity">
+            <Suspense fallback={<SettingsLoadingSkeleton />}>
+              <CronJobMonitoring />
+            </Suspense>
+          </SettingsCard>
+
           <SettingsCard icon={Database} title="Data Backup & Restore" description="Export data and manage backups">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
               <BackupRestoreSettings />
