@@ -367,9 +367,9 @@ export const TaskListView = ({
         <div className="relative overflow-auto flex-1 min-h-0">
           <Table>
             <TableHeader>
-              <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
+              <TableRow className="sticky top-0 z-20 bg-muted border-b-2 shadow-sm">
                 {visibleColumns.includes('checkbox') && (
-                  <TableHead className="w-10 font-bold text-foreground">
+                  <TableHead className="w-10 font-bold text-foreground bg-muted">
                     <Checkbox
                       checked={paginatedTasks.length > 0 && paginatedTasks.every(t => selectedTasks.includes(t.id))}
                       onCheckedChange={(checked) => {
@@ -386,40 +386,40 @@ export const TaskListView = ({
                   </TableHead>
                 )}
                 {visibleColumns.includes('title') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Task</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Task</TableHead>
                 )}
                 {visibleColumns.includes('status') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Status</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Status</TableHead>
                 )}
                 {visibleColumns.includes('priority') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Priority</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Priority</TableHead>
                 )}
                 {visibleColumns.includes('due_date') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Due Date</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Due Date</TableHead>
                 )}
                 {visibleColumns.includes('due_time') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Due Time</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Due Time</TableHead>
                 )}
                 {visibleColumns.includes('assigned_to') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Assigned To</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Assigned To</TableHead>
                 )}
                 {visibleColumns.includes('linked_to') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Linked To</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Linked To</TableHead>
                 )}
                 {visibleColumns.includes('created_by') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Task Owner</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Task Owner</TableHead>
                 )}
                 {visibleColumns.includes('module_type') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Module</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Module</TableHead>
                 )}
                 {visibleColumns.includes('description') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Description</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Description</TableHead>
                 )}
                 {visibleColumns.includes('created_at') && (
-                  <TableHead className="font-bold text-foreground px-4 py-3">Created Date</TableHead>
+                  <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Created Date</TableHead>
                 )}
                 {visibleColumns.includes('actions') && (
-                  <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3">Actions</TableHead>
+                  <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3 bg-muted">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>

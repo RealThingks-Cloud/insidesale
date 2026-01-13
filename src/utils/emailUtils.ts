@@ -140,8 +140,8 @@ export const cleanBounceReason = (reason: string | null): { summary: string; tec
     return { summary: '', technical: null };
   }
 
-  // Strip HTML tags
-  let cleanedText = reason.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  // Strip HTML tags using the shared utility
+  let cleanedText = stripHtmlTags(reason).replace(/\s+/g, ' ').trim();
   
   if (!cleanedText) {
     return { summary: '', technical: null };
@@ -172,19 +172,37 @@ export const cleanBounceReason = (reason: string | null): { summary: string; tec
 
 /**
  * Strip HTML tags from email content for preview
+ * Uses a specific pattern to only match actual HTML tags, preserving text placeholders like <Company>
  */
 export const stripHtmlTags = (html: string | null): string => {
   if (!html) return '';
+  
+  // Pattern to match only actual HTML tags (known tag names)
+  const htmlTagPattern = /<\/?(html|head|body|div|span|p|br|a|img|table|tr|td|th|thead|tbody|tfoot|ul|ol|li|h[1-6]|strong|b|i|em|u|strike|s|sub|sup|blockquote|pre|code|hr|font|center|style|script|meta|link|title|header|footer|nav|section|article|aside|main|figure|figcaption|iframe|video|audio|source|canvas|svg|path|g|defs|use|symbol|clipPath|text|tspan|input|button|form|label|select|option|textarea|fieldset|legend|datalist|output|details|summary|dialog|menu|menuitem|template|slot|noscript|object|embed|param|picture|track|wbr|col|colgroup|caption|area|map|base|bdi|bdo|cite|data|dfn|kbd|mark|q|rp|rt|rtc|ruby|samp|small|time|var|abbr|address|del|ins|progress|meter|o:p|xml|!DOCTYPE|!--|v:shapetype|v:shape|v:imagedata|v:fill|v:stroke|v:textbox|v:path|v:rect|v:oval|v:line|v:polyline|v:group|v:roundrect|v:formulas|v:f|v:handles|v:h|w:wrap|w:anchorlock)(\s[^>]*)?\/?>/gi;
+  
   return html
+    // First convert br tags to newlines
     .replace(/<br\s*\/?>/gi, '\n')
+    // Convert paragraph ends to double newlines
     .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, '')
+    // Remove HTML tags (but not arbitrary text in angle brackets like <Company>)
+    .replace(htmlTagPattern, '')
+    // Remove any remaining style/script content
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    // Decode common HTML entities
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&apos;/g, "'")
+    // Clean up excessive whitespace
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+/g, ' ')
     .trim();
 };
 

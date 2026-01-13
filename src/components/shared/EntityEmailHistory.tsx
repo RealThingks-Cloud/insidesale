@@ -1,41 +1,26 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
   Mail,
-  Eye,
-  Clock,
-  AlertTriangle,
-  XCircle,
-  CheckCircle,
-  Send,
+  Reply,
+  MessageSquare,
   ChevronDown,
   ChevronRight,
-  MailX,
-  Info,
-  Reply,
-  Loader2,
-  MessageSquare,
-  ArrowUpRight,
-  ArrowDownLeft,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { EmailReplyModal } from '@/components/email/EmailReplyModal';
+import { OutlookCompactCard } from '@/components/email/OutlookCompactCard';
+import { EMAIL_STATUS_COLORS } from '@/utils/emailConstants';
+import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 
 interface EmailHistoryItem {
   id: string;
@@ -86,6 +71,7 @@ interface ThreadMessage {
   to_name: string | null;
   status?: string;
   bounce_type?: string | null;
+  bounce_reason?: string | null;
   is_valid_open?: boolean | null;
   open_count?: number | null;
   originalEmail?: EmailHistoryItem;
@@ -108,26 +94,11 @@ interface EntityEmailHistoryProps {
   entityId: string;
 }
 
-// Helper function to get user-friendly bounce explanation based on actual bounce_type
-const getBounceExplanation = (bounceType: string | null) => {
-  if (bounceType === 'hard') {
-    return { title: "Delivery Failed", Icon: MailX, severity: 'error' as const };
-  }
-  if (bounceType === 'soft') {
-    return { title: "Delivery Delayed", Icon: AlertTriangle, severity: 'warning' as const };
-  }
-  // For unknown bounce types, check if it's actually a bounce
-  if (bounceType) {
-    return { title: "Delivery Issue", Icon: XCircle, severity: 'warning' as const };
-  }
-  return { title: "Delivery Failed", Icon: XCircle, severity: 'error' as const };
-};
-
 export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryProps) => {
+  const { user } = useAuth();
   const [emails, setEmails] = useState<EmailHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [repliesMap, setRepliesMap] = useState<Record<string, EmailReply[]>>({});
   
   // Reply modal state
@@ -135,7 +106,24 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
   const [selectedEmailForReply, setSelectedEmailForReply] = useState<EmailHistoryItem | null>(null);
   const [replyToData, setReplyToData] = useState<{ from_email: string; from_name: string | null; body_preview?: string | null; received_at?: string; subject?: string | null } | undefined>(undefined);
 
-  const fetchEmails = async () => {
+  // Fetch sender's display name from profile
+  const { data: senderName } = useQuery({
+    queryKey: ['sender-profile-name', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (error) return null;
+      return data?.full_name || null;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const fetchEmails = useCallback(async () => {
     setLoading(true);
     try {
       let query = supabase
@@ -181,13 +169,13 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     } finally {
       setLoading(false);
     }
-  };
+  }, [entityType, entityId]);
 
   useEffect(() => {
     if (entityId) {
       fetchEmails();
     }
-  }, [entityType, entityId]);
+  }, [entityId, fetchEmails]);
 
   // Real-time subscription for email status updates
   useEffect(() => {
@@ -264,11 +252,12 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
           subject: email.subject,
           body: email.body,
           from_email: email.sender_email,
-          from_name: null,
+          from_name: senderName || null, // Use fetched sender name
           to_email: email.recipient_email,
           to_name: email.recipient_name,
           status: email.status,
           bounce_type: email.bounce_type,
+          bounce_reason: email.bounce_reason,
           is_valid_open: email.is_valid_open,
           open_count: email.open_count,
           originalEmail: email,
@@ -286,7 +275,7 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
             from_email: reply.from_email,
             from_name: reply.from_name,
             to_email: email.sender_email,
-            to_name: null,
+            to_name: senderName || null,
             originalReply: reply,
           });
         });
@@ -296,7 +285,6 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
       messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
       // Determine latest status
-      const lastSentEmail = [...threadEmails].reverse().find(e => !e.is_reply || !e.parent_email_id);
       const hasReplies = messages.some(m => m.type === 'received') || threadEmails.some(e => e.reply_count && e.reply_count > 0);
       const hasBounce = threadEmails.some(e => e.bounce_type);
       
@@ -322,7 +310,7 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
     
     return result;
-  }, [emails, repliesMap]);
+  }, [emails, repliesMap, senderName]);
 
   const toggleThread = (threadId: string) => {
     setExpandedThreads(prev => {
@@ -331,18 +319,6 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
         next.delete(threadId);
       } else {
         next.add(threadId);
-      }
-      return next;
-    });
-  };
-
-  const toggleMessage = (messageId: string) => {
-    setExpandedMessages(prev => {
-      const next = new Set(prev);
-      if (next.has(messageId)) {
-        next.delete(messageId);
-      } else {
-        next.add(messageId);
       }
       return next;
     });
@@ -379,55 +355,41 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     setShowReplyModal(true);
   };
 
-  const getStatusBadge = (status: string, bounceType?: string | null, hasReplies?: boolean) => {
-    if (bounceType) {
-      const bounceInfo = getBounceExplanation(bounceType);
+  const getThreadStatusBadge = (thread: EmailThread) => {
+    if (thread.hasBounce) {
       return (
-        <Badge className="bg-destructive/10 text-destructive border-destructive/20">
-          <XCircle className="h-3 w-3 mr-1" />
-          {bounceInfo.title}
+        <Badge className={cn(EMAIL_STATUS_COLORS.bounced.bg, EMAIL_STATUS_COLORS.bounced.text, 'flex items-center gap-1')}>
+          Bounced
         </Badge>
       );
     }
-
-    if (hasReplies || status === 'replied') {
+    if (thread.hasReplies) {
       return (
-        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-          <Reply className="h-3 w-3 mr-1" />
+        <Badge className={cn(EMAIL_STATUS_COLORS.replied.bg, EMAIL_STATUS_COLORS.replied.text, 'flex items-center gap-1')}>
+          <Reply className="h-3 w-3" />
           Replied
         </Badge>
       );
     }
-
-    if (status === 'opened') {
+    if (thread.latestStatus === 'opened') {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-          <Eye className="h-3 w-3 mr-1" />
+        <Badge className={cn(EMAIL_STATUS_COLORS.opened.bg, EMAIL_STATUS_COLORS.opened.text, 'flex items-center gap-1')}>
           Opened
         </Badge>
       );
     }
-
-    if (status === 'delivered') {
+    if (thread.latestStatus === 'delivered') {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          <CheckCircle className="h-3 w-3 mr-1" />
+        <Badge className={cn(EMAIL_STATUS_COLORS.delivered.bg, EMAIL_STATUS_COLORS.delivered.text, 'flex items-center gap-1')}>
           Delivered
         </Badge>
       );
     }
-
     return (
-      <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-        <Send className="h-3 w-3 mr-1" />
+      <Badge className={cn(EMAIL_STATUS_COLORS.sent.bg, EMAIL_STATUS_COLORS.sent.text, 'flex items-center gap-1')}>
         Sent
       </Badge>
     );
-  };
-
-  const stripHtml = (html: string | null) => {
-    if (!html) return '';
-    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
   if (loading) {
@@ -452,17 +414,17 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
   return (
     <>
       <ScrollArea className="h-[400px] pr-4">
-        <div className="space-y-2">
+        <div className="space-y-3">
           {threads.map((thread) => {
             const isExpanded = expandedThreads.has(thread.threadId);
-            const isSingleMessage = thread.totalMessages === 1;
             
             return (
               <Card 
                 key={thread.threadId} 
-                className={`overflow-hidden transition-colors ${
-                  thread.hasBounce ? 'border-destructive/30' : ''
-                }`}
+                className={cn(
+                  'overflow-hidden transition-colors',
+                  thread.hasBounce && 'border-destructive/30'
+                )}
               >
                 {/* Thread Header */}
                 <div 
@@ -490,11 +452,10 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(thread.lastActivity), 'dd/MM/yyyy HH:mm')}
+                            {format(new Date(thread.lastActivity), 'MMM d, HH:mm')}
                           </span>
                           {thread.hasReplies && (
-                            <span className="flex items-center gap-1 text-purple-600">
+                            <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
                               <Reply className="h-3 w-3" />
                               Has replies
                             </span>
@@ -503,160 +464,50 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {getStatusBadge(thread.latestStatus, thread.hasBounce ? 'hard' : null, thread.hasReplies)}
+                      {getThreadStatusBadge(thread)}
                     </div>
                   </div>
                 </div>
 
-                {/* Expanded Thread Messages */}
+                {/* Expanded Thread Messages - Using OutlookCompactCard */}
                 {isExpanded && (
                   <div className="border-t bg-muted/20">
-                    <div className="p-2 space-y-2">
-                      {thread.messages.map((message, idx) => {
-                        const isMessageExpanded = expandedMessages.has(message.id);
-                        const isLast = idx === thread.messages.length - 1;
-                        const preview = stripHtml(message.body).substring(0, 100);
-                        
-                        return (
-                          <div 
-                            key={message.id}
-                            className={`rounded-lg border transition-colors ${
-                              message.type === 'sent' 
-                                ? 'bg-background border-border' 
-                                : 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800/30'
-                            }`}
-                          >
-                            {/* Message Header (always visible) */}
-                            <div 
-                              className="p-3 cursor-pointer"
-                              onClick={() => toggleMessage(message.id)}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div className={`p-1 rounded-full shrink-0 ${
-                                    message.type === 'sent' 
-                                      ? 'bg-blue-100 dark:bg-blue-900/30' 
-                                      : 'bg-purple-100 dark:bg-purple-900/30'
-                                  }`}>
-                                    {message.type === 'sent' ? (
-                                      <ArrowUpRight className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                                    ) : (
-                                      <ArrowDownLeft className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium text-sm truncate">
-                                        {message.type === 'sent' ? 'You' : (message.from_name || message.from_email)}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {message.type === 'sent' 
-                                          ? `to ${message.to_name || message.to_email}`
-                                          : `(${message.from_email})`
-                                        }
-                                      </span>
-                                    </div>
-                                    {!isMessageExpanded && preview && (
-                                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                        {preview}...
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(message.timestamp), 'dd MMM HH:mm')}
-                                  </span>
-                                  {isMessageExpanded ? (
-                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Expanded Message Content */}
-                            {isMessageExpanded && (
-                              <div className="px-3 pb-3 pt-0">
-                                <div className="border-t pt-3">
-                                  {/* Email details */}
-                                  <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                                    <div>
-                                      <span className="text-muted-foreground">From:</span>{' '}
-                                      <span>{message.type === 'sent' ? message.from_email : (message.from_name || message.from_email)}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">To:</span>{' '}
-                                      <span>{message.to_name || message.to_email}</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Message body */}
-                                  {message.body && (
-                                    <div 
-                                      className="text-sm prose prose-sm max-w-none dark:prose-invert mb-3 max-h-[200px] overflow-y-auto"
-                                      dangerouslySetInnerHTML={{ __html: message.body }}
-                                    />
-                                  )}
-
-                                  {/* Status & Actions */}
-                                  <div className="flex items-center justify-between pt-2 border-t">
-                                    <div className="flex items-center gap-2">
-                                      {message.type === 'sent' && message.originalEmail && (
-                                        <>
-                                          {message.bounce_type ? (
-                                            <Badge className="bg-destructive/10 text-destructive text-xs">
-                                              <XCircle className="h-3 w-3 mr-1" />
-                                              Bounced
-                                            </Badge>
-                                          ) : message.open_count && message.open_count > 0 ? (
-                                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
-                                              <Eye className="h-3 w-3 mr-1" />
-                                              Opened {message.open_count > 1 ? `(${message.open_count}x)` : ''}
-                                            </Badge>
-                                          ) : (
-                                            <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 text-xs">
-                                              <Send className="h-3 w-3 mr-1" />
-                                              Sent
-                                            </Badge>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                    {!message.bounce_type && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleReplyToMessage(message, thread);
-                                        }}
-                                        className="h-7 text-xs gap-1"
-                                      >
-                                        <Reply className="h-3 w-3" />
-                                        Reply
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="p-2 space-y-1.5">
+                      {thread.messages.map((message) => (
+                        <OutlookCompactCard
+                          key={message.id}
+                          id={message.id}
+                          type={message.type}
+                          body={message.body}
+                          fromEmail={message.from_email}
+                          fromName={message.from_name}
+                          toEmail={message.to_email}
+                          toName={message.to_name}
+                          timestamp={message.timestamp}
+                          status={message.status}
+                          bounceType={message.bounce_type}
+                          bounceReason={message.bounce_reason}
+                          isValidOpen={message.is_valid_open}
+                          openCount={message.open_count}
+                          onReply={!message.bounce_type ? () => handleReplyToMessage(message, thread) : undefined}
+                        />
+                      ))}
                     </div>
 
                     {/* Thread Actions Footer */}
-                    <div className="p-2 border-t bg-muted/30 flex justify-end">
+                    <div className="p-3 border-t bg-muted/30 flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">
+                        {thread.messages.filter(m => m.type === 'sent').length} sent, {thread.messages.filter(m => m.type === 'received').length} received
+                      </span>
                       <Button
-                        variant="outline"
+                        variant="default"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleReplyToThread(thread);
                         }}
-                        className="gap-1"
+                        disabled={thread.hasBounce}
+                        className="gap-1.5"
                       >
                         <Reply className="h-4 w-4" />
                         Reply to Thread

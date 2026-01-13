@@ -28,7 +28,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Tasks = lazy(() => import("./pages/Tasks"));
-const StickyHeaderTest = lazy(() => import("./pages/StickyHeaderTest"));
+
 
 // Build version for cache busting on deployments
 const CACHE_BUSTER = 'v1.0.0';
@@ -224,12 +224,6 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRouter = () => (
   <BrowserRouter>
     <Routes>
-      {/* Public test route for sticky header verification */}
-      <Route path="/sticky-header-test" element={
-        <Suspense fallback={<PageLoader />}>
-          <StickyHeaderTest />
-        </Suspense>
-      } />
       <Route path="/auth" element={
         <Suspense fallback={<PageLoader />}>
           <AuthRoute>

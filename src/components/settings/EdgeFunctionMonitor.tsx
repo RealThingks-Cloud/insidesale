@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Activity, 
@@ -17,7 +19,6 @@ import {
   Calendar,
   Users,
   Play,
-  ExternalLink,
   Zap,
   AlertTriangle
 } from 'lucide-react';
@@ -25,12 +26,13 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EdgeFunctionDetailsDialog from './EdgeFunctionDetailsDialog';
 
 interface EdgeFunctionStatus {
   name: string;
   displayName: string;
   category: 'email' | 'task' | 'meeting' | 'system' | 'utility';
-  status: 'active' | 'error' | 'unknown' | 'deprecated';
+  status: 'active' | 'error' | 'unknown' | 'deprecated' | 'never_used';
   lastActivity?: string;
   activityCount?: number;
   description: string;
@@ -38,16 +40,25 @@ interface EdgeFunctionStatus {
   isRequired: boolean;
 }
 
-const EdgeFunctionMonitor = () => {
+interface EdgeFunctionMonitorProps {
+  embedded?: boolean;
+}
+
+// Safe functions that can be tested
+const SAFE_FUNCTIONS = ['keep-alive', 'fetch-user-display-names', 'get-user-names', 'security-monitor'];
+
+const EdgeFunctionMonitor = ({ embedded = false }: EdgeFunctionMonitorProps) => {
   const [functions, setFunctions] = useState<EdgeFunctionStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [showDeprecated, setShowDeprecated] = useState(false);
+  const [selectedFunction, setSelectedFunction] = useState<EdgeFunctionStatus | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const fetchFunctionStatuses = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch various activity indicators in parallel
       const [
         keepAliveResult,
         emailHistoryResult,
@@ -70,14 +81,17 @@ const EdgeFunctionMonitor = () => {
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
       ]);
 
-      const getStatus = (data: any, field: string = 'created_at'): { status: 'active' | 'unknown', lastActivity?: string } => {
+      const getStatus = (data: any, field: string = 'created_at'): { status: 'active' | 'unknown' | 'never_used', lastActivity?: string } => {
+        if (!data?.data || data.data.length === 0) {
+          return { status: 'never_used' };
+        }
         if (data?.data?.[0]) {
           const activityDate = data.data[0][field];
           if (activityDate) {
             const date = new Date(activityDate);
             const hoursAgo = (Date.now() - date.getTime()) / (1000 * 60 * 60);
             return {
-              status: hoursAgo < 168 ? 'active' : 'unknown', // Active if used in last 7 days
+              status: hoursAgo < 168 ? 'active' : 'unknown',
               lastActivity: activityDate
             };
           }
@@ -85,7 +99,21 @@ const EdgeFunctionMonitor = () => {
         return { status: 'unknown' };
       };
 
-      const keepAliveStatus = getStatus(keepAliveResult, 'Able to read DB');
+      // Get keep-alive status - use 'Able to read DB' or fallback to 'created_at'
+      let keepAliveStatus: { status: 'active' | 'unknown' | 'never_used', lastActivity?: string } = { status: 'never_used' };
+      if (keepAliveResult?.data?.[0]) {
+        const record = keepAliveResult.data[0];
+        const lastPing = record['Able to read DB'] || record.created_at;
+        if (lastPing) {
+          const date = new Date(lastPing);
+          const hoursAgo = (Date.now() - date.getTime()) / (1000 * 60 * 60);
+          keepAliveStatus = {
+            status: hoursAgo < 48 ? 'active' : 'unknown',
+            lastActivity: lastPing
+          };
+        }
+      }
+
       const emailStatus = getStatus(emailHistoryResult, 'sent_at');
       const bounceStatus = getStatus(bouncesResult, 'bounced_at');
       const replyStatus = getStatus(repliesResult, 'received_at');
@@ -207,7 +235,7 @@ const EdgeFunctionMonitor = () => {
           displayName: 'Sync Bounces',
           category: 'email',
           status: 'deprecated',
-          description: 'Legacy bounce sync (may be unnecessary)',
+          description: 'Legacy bounce sync (not actively used)',
           icon: <RefreshCw className="h-4 w-4" />,
           isRequired: false
         },
@@ -317,12 +345,19 @@ const EdgeFunctionMonitor = () => {
     fetchFunctionStatuses();
   }, [fetchFunctionStatuses]);
 
-  const handleTestFunction = async (functionName: string) => {
+  const handleTestFunction = async (e: React.MouseEvent, functionName: string) => {
+    e.stopPropagation();
+    
+    if (!SAFE_FUNCTIONS.includes(functionName)) {
+      toast.error('This function cannot be tested from the monitor');
+      return;
+    }
+    
     setTesting(functionName);
     try {
-      const { data, error } = await supabase.functions.invoke(functionName, {
+      const { error } = await supabase.functions.invoke(functionName, {
         method: 'POST',
-        body: { test: true }
+        body: {}
       });
 
       if (error) {
@@ -334,34 +369,34 @@ const EdgeFunctionMonitor = () => {
       toast.error(`${functionName} test failed: ${err.message}`);
     } finally {
       setTesting(null);
-      // Refresh statuses after test
       setTimeout(fetchFunctionStatuses, 1000);
+    }
+  };
+
+  const handleCardClick = (func: EdgeFunctionStatus) => {
+    setSelectedFunction(func);
+    setDetailsOpen(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, func: EdgeFunctionStatus) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleCardClick(func);
     }
   };
 
   const getStatusBadge = (status: EdgeFunctionStatus['status']) => {
     switch (status) {
       case 'active':
-        return <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>;
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>;
       case 'error':
         return <Badge variant="destructive">Error</Badge>;
       case 'deprecated':
-        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Deprecated</Badge>;
+        return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Deprecated</Badge>;
+      case 'never_used':
+        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Never Used</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
-  const getStatusIcon = (status: EdgeFunctionStatus['status']) => {
-    switch (status) {
-      case 'active':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <XCircle className="h-4 w-4 text-destructive" />;
-      case 'deprecated':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -375,64 +410,120 @@ const EdgeFunctionMonitor = () => {
   ];
 
   const getFunctionsByCategory = (category: string) => {
-    if (category === 'all') return functions;
-    return functions.filter(f => f.category === category);
+    let filtered = category === 'all' ? functions : functions.filter(f => f.category === category);
+    if (!showDeprecated) {
+      filtered = filtered.filter(f => f.status !== 'deprecated');
+    }
+    return filtered;
   };
 
-  const stats = {
-    total: functions.length,
-    active: functions.filter(f => f.status === 'active').length,
-    deprecated: functions.filter(f => f.status === 'deprecated').length,
-    unknown: functions.filter(f => f.status === 'unknown').length,
-  };
+  const activeCount = functions.filter(f => f.status === 'active').length;
+  const deprecatedCount = functions.filter(f => f.status === 'deprecated').length;
+  const unknownCount = functions.filter(f => f.status === 'unknown').length;
+  const visibleCount = showDeprecated ? functions.length : functions.filter(f => f.status !== 'deprecated').length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Edge Functions</h3>
-          <p className="text-sm text-muted-foreground">
-            Monitor and test all {functions.length} edge functions
-          </p>
+    <div className="space-y-4">
+      {/* Header - only show when not embedded */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">Edge Functions</h3>
+            <p className="text-sm text-muted-foreground">
+              Monitor and test all {visibleCount} edge functions
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              Last: {format(lastRefresh, 'HH:mm:ss')}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchFunctionStatuses} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            Last checked: {format(lastRefresh, 'HH:mm:ss')}
-          </span>
-          <Button variant="outline" size="sm" onClick={fetchFunctionStatuses} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      )}
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Total Functions</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Active</p>
-            <p className="text-2xl font-bold text-green-600">{stats.active}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Deprecated</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.deprecated}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-muted-foreground">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Unknown</p>
-            <p className="text-2xl font-bold text-muted-foreground">{stats.unknown}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Compact action row for embedded mode */}
+      {embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium">{activeCount}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{unknownCount}</span>
+            </div>
+            {deprecatedCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                <span className="text-sm font-medium">{deprecatedCount}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch 
+                id="show-deprecated" 
+                checked={showDeprecated} 
+                onCheckedChange={setShowDeprecated}
+              />
+              <Label htmlFor="show-deprecated" className="text-xs">Show deprecated</Label>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {format(lastRefresh, 'HH:mm')}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchFunctionStatuses} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Overview - more compact */}
+      {!embedded && (
+        <div className="grid grid-cols-4 gap-3">
+          <Card className="border-l-4 border-l-primary">
+            <CardContent className="py-3 px-4">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xl font-bold">{visibleCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-green-500">
+            <CardContent className="py-3 px-4">
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-xl font-bold text-green-600">{activeCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-yellow-500">
+            <CardContent className="py-3 px-4">
+              <p className="text-xs text-muted-foreground">Deprecated</p>
+              <p className="text-xl font-bold text-yellow-600">{deprecatedCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-muted-foreground">
+            <CardContent className="py-3 px-4">
+              <p className="text-xs text-muted-foreground">Unknown</p>
+              <p className="text-xl font-bold text-muted-foreground">{unknownCount}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Show deprecated toggle for non-embedded */}
+      {!embedded && deprecatedCount > 0 && (
+        <div className="flex items-center gap-2">
+          <Switch 
+            id="show-deprecated-main" 
+            checked={showDeprecated} 
+            onCheckedChange={setShowDeprecated}
+          />
+          <Label htmlFor="show-deprecated-main" className="text-sm">Show deprecated functions</Label>
+        </div>
+      )}
 
       {/* Functions by Category */}
       <Tabs defaultValue="all" className="w-full">
@@ -441,75 +532,79 @@ const EdgeFunctionMonitor = () => {
             const Icon = cat.icon;
             const count = getFunctionsByCategory(cat.id).length;
             return (
-              <TabsTrigger key={cat.id} value={cat.id} className="flex items-center gap-1.5">
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{cat.label}</span>
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{count}</Badge>
+              <TabsTrigger key={cat.id} value={cat.id} className="flex items-center gap-1">
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline text-xs">{cat.label}</span>
+                <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{count}</Badge>
               </TabsTrigger>
             );
           })}
         </TabsList>
 
         {categories.map(cat => (
-          <TabsContent key={cat.id} value={cat.id} className="mt-4">
+          <TabsContent key={cat.id} value={cat.id} className="mt-3">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {getFunctionsByCategory(cat.id).map((func) => (
-                  <Card key={func.name} className={`transition-colors ${func.status === 'deprecated' ? 'opacity-60' : ''}`}>
-                    <CardContent className="p-4">
+                  <Card 
+                    key={func.name} 
+                    className={`transition-all cursor-pointer hover:shadow-md hover:border-primary/50 ${func.status === 'deprecated' ? 'opacity-60' : ''}`}
+                    onClick={() => handleCardClick(func)}
+                    onKeyDown={(e) => handleKeyDown(e, func)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <CardContent className="p-3">
                       <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${
+                        <div className="flex items-start gap-2.5">
+                          <div className={`p-1.5 rounded-md ${
                             func.status === 'active' ? 'bg-green-500/10' : 
                             func.status === 'deprecated' ? 'bg-yellow-500/10' : 
                             'bg-muted'
                           }`}>
                             {func.icon}
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">{func.displayName}</span>
                               {getStatusBadge(func.status)}
                             </div>
-                            <p className="text-xs text-muted-foreground">{func.description}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{func.description}</p>
                             {func.lastActivity && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                Last: {formatDistanceToNow(new Date(func.lastActivity), { addSuffix: true })}
-                              </p>
-                            )}
-                            {func.activityCount !== undefined && func.activityCount > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                {func.activityCount.toLocaleString()} records
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-2.5 w-2.5" />
+                                {formatDistanceToNow(new Date(func.lastActivity), { addSuffix: true })}
                               </p>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleTestFunction(func.name)}
-                                  disabled={testing === func.name || func.status === 'deprecated'}
-                                >
-                                  {testing === func.name ? (
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Play className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Test function</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          {SAFE_FUNCTIONS.includes(func.name) && func.status !== 'deprecated' && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={(e) => handleTestFunction(e, func.name)}
+                                    disabled={testing === func.name}
+                                  >
+                                    {testing === func.name ? (
+                                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Play className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Test function</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -521,23 +616,13 @@ const EdgeFunctionMonitor = () => {
         ))}
       </Tabs>
 
-      {/* Deprecated Functions Warning */}
-      {stats.deprecated > 0 && (
-        <Card className="border-yellow-500/50 bg-yellow-500/5">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">Deprecated Functions Detected</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats.deprecated} function(s) are marked as deprecated and may be removed in future updates.
-                  Consider reviewing if they're still needed.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Details Dialog */}
+      <EdgeFunctionDetailsDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        func={selectedFunction}
+        onTestComplete={fetchFunctionStatuses}
+      />
     </div>
   );
 };

@@ -78,6 +78,7 @@ export type Database = {
           id: string
           industry: string | null
           last_activity_date: string | null
+          last_contacted_at: string | null
           modified_by: string | null
           notes: string | null
           phone: string | null
@@ -100,6 +101,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_activity_date?: string | null
+          last_contacted_at?: string | null
           modified_by?: string | null
           notes?: string | null
           phone?: string | null
@@ -122,6 +124,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_activity_date?: string | null
+          last_contacted_at?: string | null
           modified_by?: string | null
           notes?: string | null
           phone?: string | null
@@ -1314,6 +1317,7 @@ export type Database = {
           email: string | null
           id: string
           industry: string | null
+          last_contacted_at: string | null
           lead_name: string
           lead_status: string | null
           linkedin: string | null
@@ -1336,6 +1340,7 @@ export type Database = {
           email?: string | null
           id?: string
           industry?: string | null
+          last_contacted_at?: string | null
           lead_name: string
           lead_status?: string | null
           linkedin?: string | null
@@ -1358,6 +1363,7 @@ export type Database = {
           email?: string | null
           id?: string
           industry?: string | null
+          last_contacted_at?: string | null
           lead_name?: string
           lead_status?: string | null
           linkedin?: string | null

@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import {
   ChevronDown,
@@ -25,11 +23,12 @@ import {
   getAvatarColor, 
   getInitials, 
   formatEmailTimestamp, 
-  stripHtmlTags,
   getBounceExplanation,
   cleanBounceReason,
+  stripHtmlTags,
 } from '@/utils/emailUtils';
 import { EMAIL_STATUS_COLORS, MESSAGE_DIRECTION_COLORS } from '@/utils/emailConstants';
+import { OutlookEmailBody } from './OutlookEmailBody';
 
 export interface OutlookEmailCardProps {
   id: string;
@@ -75,14 +74,33 @@ export const OutlookEmailCard = ({
   className,
 }: OutlookEmailCardProps) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [showQuoted, setShowQuoted] = useState(false);
 
   const directionColors = MESSAGE_DIRECTION_COLORS[type];
-  const avatarColor = getAvatarColor(type === 'sent' ? toEmail : fromEmail);
-  const initials = getInitials(type === 'sent' ? toName : fromName, type === 'sent' ? toEmail : fromEmail);
   
-  const cleanBody = stripHtmlTags(body);
-  const previewText = cleanBody.substring(0, 150) + (cleanBody.length > 150 ? '...' : '');
+  // For avatar, use the "other" party - sent shows recipient, received shows sender
+  const avatarEmail = type === 'sent' ? toEmail : fromEmail;
+  const avatarName = type === 'sent' ? toName : fromName;
+  const avatarColor = getAvatarColor(avatarEmail);
+  const initials = getInitials(avatarName, avatarEmail);
+  
+  // Format display names
+  const formatDisplayName = (name: string | null, email: string) => {
+    if (name && name.trim()) {
+      return name.trim();
+    }
+    // Extract name from email (before @)
+    return email.split('@')[0];
+  };
+
+  const fromDisplayName = formatDisplayName(fromName, fromEmail);
+  const toDisplayName = formatDisplayName(toName, toEmail);
+
+  // Clean preview text using shared utility that preserves placeholders like <Company>
+  const getPreviewText = () => {
+    if (!body) return '';
+    const clean = stripHtmlTags(body).replace(/\s+/g, ' ').trim();
+    return clean.substring(0, 150) + (clean.length > 150 ? '...' : '');
+  };
 
   const getStatusBadge = () => {
     // Check for verifying state (sent within last 60 seconds)
@@ -194,7 +212,7 @@ export const OutlookEmailCard = ({
         className
       )}
     >
-      {/* Email Header */}
+      {/* Email Header - Dark bar like Outlook */}
       <div 
         className="bg-slate-800 dark:bg-slate-900 px-4 py-2 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -212,6 +230,9 @@ export const OutlookEmailCard = ({
             {hasAttachments && (
               <Paperclip className="h-3.5 w-3.5 text-slate-400" />
             )}
+            <span className="text-slate-400 text-xs hidden sm:inline">
+              {formatEmailTimestamp(timestamp)}
+            </span>
             {isExpanded ? (
               <ChevronUp className="h-4 w-4 text-slate-400" />
             ) : (
@@ -234,35 +255,32 @@ export const OutlookEmailCard = ({
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* From/To Line */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm mb-1">
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground font-medium">From:</span>
-                <span className="font-medium">{fromName || fromEmail.split('@')[0]}</span>
-                <span className="text-muted-foreground">({fromEmail})</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground font-medium">To:</span>
-                <span className="font-medium">{toName || toEmail.split('@')[0]}</span>
-                <span className="text-muted-foreground">({toEmail})</span>
-              </div>
+            {/* From Line */}
+            <div className="flex items-baseline gap-2 text-sm mb-1">
+              <span className="text-muted-foreground font-medium shrink-0">From:</span>
+              <span className="font-medium truncate">{fromDisplayName}</span>
+              <span className="text-muted-foreground text-xs truncate">({fromEmail})</span>
+            </div>
+            
+            {/* To Line */}
+            <div className="flex items-baseline gap-2 text-sm mb-2">
+              <span className="text-muted-foreground font-medium shrink-0">To:</span>
+              <span className="font-medium truncate">{toDisplayName}</span>
+              <span className="text-muted-foreground text-xs truncate">({toEmail})</span>
             </div>
 
             {/* Timestamp and Status */}
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground sm:hidden">
                 {formatEmailTimestamp(timestamp)}
               </span>
-              {type === 'sent' && getStatusBadge()}
+              {getStatusBadge()}
             </div>
 
             {/* Body Preview or Full */}
             {isExpanded ? (
               <div className="mt-3 space-y-3">
-                <div 
-                  className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: body || '' }}
-                />
+                <OutlookEmailBody body={body} maxHeight="300px" />
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-2 border-t">
@@ -282,7 +300,7 @@ export const OutlookEmailCard = ({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground line-clamp-2">
-                {previewText}
+                {getPreviewText()}
               </p>
             )}
           </div>
