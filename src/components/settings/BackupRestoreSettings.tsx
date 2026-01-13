@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import SettingsLoadingSkeleton from './shared/SettingsLoadingSkeleton';
 
 // Lazy load ModuleImportExport
@@ -193,7 +194,7 @@ const BackupRestoreSettings = () => {
     } else if (!roleLoading) {
       setLoading(false);
     }
-  }, [fetchBackups, isAdmin, roleLoading]);
+  }, [fetchBackups, fetchSchedule, isAdmin, roleLoading]);
 
   const handleCreateBackup = async () => {
     if (!isAdmin) {
@@ -407,12 +408,23 @@ const BackupRestoreSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                <Upload className="h-4 w-4 mr-2" />
-                Import Backup File
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="w-full">
+                      <Button variant="outline" className="w-full" disabled>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import Backup File
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Use the restore option from backup history below</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Use restore from backup history below
+                Restore from backup history below
               </p>
             </CardContent>
           </Card>
@@ -511,7 +523,7 @@ const BackupRestoreSettings = () => {
                       </span>
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {backup.backup_type === 'manual' ? 'Manual' : 'Auto'}
+                        {backup.backup_type === 'scheduled' ? 'Scheduled' : 'Manual'}
                       </span>
                       <span>
                         {backup.tables_count} tables • {backup.records_count?.toLocaleString()} records
