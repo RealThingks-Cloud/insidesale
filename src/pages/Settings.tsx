@@ -1,28 +1,13 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { User, Shield, Mail } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserRole } from "@/hooks/useUserRole";
 import { usePermissions } from "@/contexts/PermissionsContext";
-import { Skeleton } from "@/components/ui/skeleton";
-
-// Lazy load heavy settings pages
-const AccountSettingsPage = lazy(() => import("@/components/settings/AccountSettingsPage"));
-const AdminSettingsPage = lazy(() => import("@/components/settings/AdminSettingsPage"));
-const EmailCenterPage = lazy(() => import("@/components/settings/EmailCenterPage"));
-
-// Loading skeleton for settings content
-const SettingsContentSkeleton = () => (
-  <div className="space-y-6">
-    <Skeleton className="h-8 w-48" />
-    <div className="space-y-4">
-      <Skeleton className="h-24 w-full" />
-      <Skeleton className="h-24 w-full" />
-      <Skeleton className="h-24 w-full" />
-    </div>
-  </div>
-);
+import AccountSettingsPage from "@/components/settings/AccountSettingsPage";
+import AdminSettingsPage from "@/components/settings/AdminSettingsPage";
+import EmailCenterPage from "@/components/settings/EmailCenterPage";
 
 interface SettingsTab {
   id: string;
@@ -185,9 +170,7 @@ const Settings = () => {
           aria-labelledby={`tab-${activeTab}`}
           tabIndex={0}
         >
-          <Suspense fallback={<SettingsContentSkeleton />}>
-            {renderContent()}
-          </Suspense>
+          {renderContent()}
         </div>
       </ScrollArea>
     </div>

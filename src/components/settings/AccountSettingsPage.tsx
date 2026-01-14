@@ -210,8 +210,7 @@ const AccountSettingsPage = () => {
   return (
     <div className="space-y-6 w-full pb-6">
       <Tabs defaultValue="profile" className="w-full">
-        <div className="sticky top-0 z-10 bg-background pb-2 border-b border-border">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="profile" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -224,8 +223,7 @@ const AccountSettingsPage = () => {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
-          </TabsList>
-        </div>
+        </TabsList>
 
         <TabsContent value="profile" className="mt-6 space-y-4">
           <ProfileSection 

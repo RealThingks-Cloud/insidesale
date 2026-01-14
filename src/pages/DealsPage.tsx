@@ -1,8 +1,10 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Deal, DealStage } from "@/types/deal";
+import { KanbanBoard } from "@/components/KanbanBoard";
+import { ListView } from "@/components/ListView";
 import { DealForm } from "@/components/DealForm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -10,24 +12,10 @@ import { Plus, LayoutGrid, List, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCRUDAudit } from "@/hooks/useCRUDAudit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Upload, Download, Columns } from "lucide-react";
+import { Upload, Download, Columns, MoreVertical } from "lucide-react";
 import { useDealsImportExport } from "@/hooks/useDealsImportExport";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Skeleton } from "@/components/ui/skeleton";
-
-// Lazy load heavy view components
-const KanbanBoard = lazy(() => import("@/components/KanbanBoard").then(m => ({ default: m.KanbanBoard })));
-const ListView = lazy(() => import("@/components/ListView").then(m => ({ default: m.ListView })));
-
-// Loading skeleton for views
-const ViewSkeleton = () => (
-  <div className="space-y-4 flex-1 p-4">
-    <Skeleton className="h-10 w-full" />
-    <Skeleton className="h-64 w-full" />
-    <Skeleton className="h-32 w-full" />
-  </div>
-);
 
 const DealsPage = () => {
   const [searchParams] = useSearchParams();
@@ -447,31 +435,30 @@ const DealsPage = () => {
       {/* Main Content Area - Takes remaining height */}
       <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-4 overflow-hidden">
         {showSkeleton ? (
-          <ViewSkeleton />
+          <div className="space-y-4 flex-1">
+            <div className="h-10 bg-muted animate-pulse rounded" />
+            <div className="h-64 bg-muted animate-pulse rounded" />
+          </div>
         ) : activeView === 'kanban' ? (
-          <Suspense fallback={<ViewSkeleton />}>
-            <KanbanBoard 
-              deals={filteredDeals} 
-              onUpdateDeal={handleUpdateDeal} 
-              onDealClick={handleDealClick} 
-              onCreateDeal={handleCreateDeal} 
-              onDeleteDeals={handleDeleteDeals} 
-              onImportDeals={handleImportDeals} 
-              onRefresh={fetchDeals} 
-            />
-          </Suspense>
+          <KanbanBoard 
+            deals={filteredDeals} 
+            onUpdateDeal={handleUpdateDeal} 
+            onDealClick={handleDealClick} 
+            onCreateDeal={handleCreateDeal} 
+            onDeleteDeals={handleDeleteDeals} 
+            onImportDeals={handleImportDeals} 
+            onRefresh={fetchDeals} 
+          />
         ) : (
-          <Suspense fallback={<ViewSkeleton />}>
-            <ListView 
-              deals={filteredDeals} 
-              onDealClick={handleDealClick} 
-              onUpdateDeal={handleUpdateDeal} 
-              onDeleteDeals={handleDeleteDeals} 
-              onImportDeals={handleImportDeals} 
-              initialStageFilter={stageFilterFromUrl}
-              onSelectionChange={setSelectedDealIds}
-            />
-          </Suspense>
+          <ListView 
+            deals={filteredDeals} 
+            onDealClick={handleDealClick} 
+            onUpdateDeal={handleUpdateDeal} 
+            onDeleteDeals={handleDeleteDeals} 
+            onImportDeals={handleImportDeals} 
+            initialStageFilter={stageFilterFromUrl}
+            onSelectionChange={setSelectedDealIds}
+          />
         )}
       </div>
 

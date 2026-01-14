@@ -46,32 +46,26 @@ export const AccountColumnCustomizer = ({
   onSave,
   isSaving = false,
 }: AccountColumnCustomizerProps) => {
-  // Initialize local columns only when dialog opens
-  const [localColumns, setLocalColumns] = useState<AccountColumnConfig[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [localColumns, setLocalColumns] = useState<AccountColumnConfig[]>(() => {
+    const existingFields = new Set(columns.map(c => c.field));
+    const missingColumns = defaultAccountColumns.filter(dc => !existingFields.has(dc.field));
+    const validColumns = columns.filter(c => 
+      defaultAccountColumns.some(dc => dc.field === c.field)
+    );
+    return [...validColumns, ...missingColumns];
+  });
 
-  // Sync local columns only when dialog opens (not on every columns prop change)
+  // Only sync when dialog opens (not on every columns prop change)
   useEffect(() => {
-    if (open && !isInitialized) {
+    if (open) {
       const existingFields = new Set(columns.map(c => c.field));
       const missingColumns = defaultAccountColumns.filter(dc => !existingFields.has(dc.field));
       const validColumns = columns.filter(c => 
         defaultAccountColumns.some(dc => dc.field === c.field)
       );
-      
-      if (missingColumns.length > 0 || validColumns.length !== columns.length) {
-        setLocalColumns([...validColumns, ...missingColumns]);
-      } else {
-        setLocalColumns(columns);
-      }
-      setIsInitialized(true);
+      setLocalColumns([...validColumns, ...missingColumns]);
     }
-    
-    // Reset initialization flag when dialog closes
-    if (!open) {
-      setIsInitialized(false);
-    }
-  }, [open, columns, isInitialized]);
+  }, [open]);
 
   const handleToggleColumn = (field: string, visible: boolean) => {
     const updated = localColumns.map(col =>

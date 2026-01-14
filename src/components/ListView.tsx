@@ -592,8 +592,8 @@ export const ListView = ({
         <div className="relative overflow-auto flex-1 min-h-0">
         <Table ref={tableRef} className="w-full">
           <TableHeader>
-            <TableRow className="sticky top-0 z-20 bg-muted border-b-2 shadow-sm">
-              <TableHead className="w-12 min-w-12 text-center font-bold text-foreground bg-muted">
+            <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
+              <TableHead className="w-12 min-w-12 text-center font-bold text-foreground">
                 <Checkbox
                   checked={selectedDeals.size === paginatedDeals.length && paginatedDeals.length > 0}
                   onCheckedChange={handleSelectAll}
@@ -603,7 +603,7 @@ export const ListView = ({
               {visibleColumns.map(column => (
                 <TableHead 
                   key={column.field} 
-                  className="font-bold text-foreground px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors relative whitespace-nowrap bg-muted"
+                  className="font-bold text-foreground px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors relative whitespace-nowrap"
                   style={{ 
                     width: `${columnWidths[column.field] || 120}px`,
                     minWidth: `${columnWidths[column.field] || 120}px`,
@@ -633,7 +633,7 @@ export const ListView = ({
                   />
                 </TableHead>
               ))}
-              <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3 bg-muted">Actions</TableHead>
+              <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

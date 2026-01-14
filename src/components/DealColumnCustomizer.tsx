@@ -47,32 +47,12 @@ export const DealColumnCustomizer = ({
   onSave,
   isSaving = false,
 }: DealColumnCustomizerProps) => {
-  // Initialize local columns only when dialog opens
-  const [localColumns, setLocalColumns] = useState<DealColumnConfig[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [localColumns, setLocalColumns] = useState<DealColumnConfig[]>(columns);
 
-  // Sync local columns only when dialog opens (not on every columns prop change)
+  // Sync local columns when props change
   useEffect(() => {
-    if (open && !isInitialized) {
-      const existingFields = new Set(columns.map(c => c.field));
-      const missingColumns = defaultDealColumns.filter(dc => !existingFields.has(dc.field));
-      const validColumns = columns.filter(c => 
-        defaultDealColumns.some(dc => dc.field === c.field)
-      );
-      
-      if (missingColumns.length > 0 || validColumns.length !== columns.length) {
-        setLocalColumns([...validColumns, ...missingColumns]);
-      } else {
-        setLocalColumns(columns);
-      }
-      setIsInitialized(true);
-    }
-    
-    // Reset initialization flag when dialog closes
-    if (!open) {
-      setIsInitialized(false);
-    }
-  }, [open, columns, isInitialized]);
+    setLocalColumns(columns);
+  }, [columns]);
 
   const handleVisibilityChange = (field: string, visible: boolean) => {
     const updatedColumns = localColumns.map(col => 

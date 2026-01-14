@@ -598,8 +598,8 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
         <div className="relative overflow-auto flex-1 min-h-0">
           <Table>
             <TableHeader>
-              <TableRow className="sticky top-0 z-20 bg-muted border-b-2 shadow-sm">
-                <TableHead className="w-12 text-center font-bold text-foreground bg-muted">
+              <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
+                <TableHead className="w-12 text-center font-bold text-foreground">
                   <div className="flex justify-center">
                     <Checkbox
                       checked={selectedContacts.length > 0 && selectedContacts.length === Math.min(pageContacts.length, 50)}
@@ -610,7 +610,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                 {visibleColumns.map(column => (
                   <TableHead
                     key={column.field}
-                    className={`font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted ${column.field === 'contact_name' ? 'text-left' : 'text-center'}`}
+                    className={`font-bold text-foreground px-4 py-3 whitespace-nowrap ${column.field === 'contact_name' ? 'text-left' : 'text-center'}`}
                   >
                     <div
                       className={`group flex items-center gap-2 cursor-pointer hover:text-primary ${column.field === 'contact_name' ? 'justify-start' : 'justify-center'}`}
@@ -621,7 +621,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold text-foreground w-32 px-4 py-3 bg-muted">
+                <TableHead className="text-center font-bold text-foreground w-32 px-4 py-3">
                   Actions
                 </TableHead>
               </TableRow>

@@ -31,8 +31,7 @@ export const defaultLeadColumns: LeadColumnConfig[] = [
   { field: 'contact_source', label: 'Source', visible: true, order: 6 },
   { field: 'linkedin', label: 'LinkedIn', visible: false, order: 7 },
   { field: 'created_time', label: 'Created Date', visible: false, order: 8 },
-  { field: 'last_contacted_at', label: 'Last Contacted', visible: true, order: 9 },
-  { field: 'contact_owner', label: 'Lead Owner', visible: true, order: 10 },
+  { field: 'contact_owner', label: 'Lead Owner', visible: true, order: 9 },
 ];
 
 export const LeadColumnCustomizer = ({ 
@@ -43,34 +42,24 @@ export const LeadColumnCustomizer = ({
   onSave,
   isSaving = false,
 }: LeadColumnCustomizerProps) => {
-  // Initialize local columns only when dialog opens
-  const [localColumns, setLocalColumns] = useState<LeadColumnConfig[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [localColumns, setLocalColumns] = useState<LeadColumnConfig[]>(columns);
 
-  // Sync local columns only when dialog opens (not on every columns prop change)
+  // Sync local columns when props change, merging new columns if they don't exist
   useEffect(() => {
-    if (open && !isInitialized) {
-      const existingFields = new Set(columns.map(c => c.field));
-      const missingColumns = defaultLeadColumns.filter(dc => !existingFields.has(dc.field));
-      
-      // Filter out invalid columns that are not in the default columns list
-      const validColumns = columns.filter(c => 
-        defaultLeadColumns.some(dc => dc.field === c.field)
-      );
-      
-      if (missingColumns.length > 0 || validColumns.length !== columns.length) {
-        setLocalColumns([...validColumns, ...missingColumns]);
-      } else {
-        setLocalColumns(columns);
-      }
-      setIsInitialized(true);
-    }
+    const existingFields = new Set(columns.map(c => c.field));
+    const missingColumns = defaultLeadColumns.filter(dc => !existingFields.has(dc.field));
     
-    // Reset initialization flag when dialog closes
-    if (!open) {
-      setIsInitialized(false);
+    // Filter out invalid columns that are not in the default columns list
+    const validColumns = columns.filter(c => 
+      defaultLeadColumns.some(dc => dc.field === c.field)
+    );
+    
+    if (missingColumns.length > 0 || validColumns.length !== columns.length) {
+      setLocalColumns([...validColumns, ...missingColumns]);
+    } else {
+      setLocalColumns(columns);
     }
-  }, [open, columns, isInitialized]);
+  }, [columns]);
 
   const handleVisibilityChange = (field: string, visible: boolean) => {
     const updatedColumns = localColumns.map(col => 

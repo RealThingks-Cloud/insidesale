@@ -19,9 +19,7 @@ import {
   User,
   HardDrive,
   FileJson,
-  CalendarClock,
-  Copy,
-  ExternalLink
+  CalendarClock
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -68,7 +66,6 @@ interface BackupSchedule {
   time_of_day: string;
   is_enabled: boolean;
   next_run_at?: string;
-  last_run_at?: string;
 }
 
 const BackupRestoreSettings = () => {
@@ -141,7 +138,6 @@ const BackupRestoreSettings = () => {
           time_of_day: data.time_of_day || '00:00',
           is_enabled: data.is_enabled || false,
           next_run_at: data.next_run_at,
-          last_run_at: data.last_run_at,
         });
       }
     } catch (error) {
@@ -444,7 +440,7 @@ const BackupRestoreSettings = () => {
                   <Label htmlFor="scheduled-backup" className="text-base">Scheduled Backups</Label>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Automatically create daily backups at scheduled time
+                  Automatically create daily backups at midnight
                 </p>
               </div>
               <Switch
@@ -457,91 +453,30 @@ const BackupRestoreSettings = () => {
               />
             </div>
             {schedule.is_enabled && (
-              <div className="mt-4 pt-4 border-t space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm text-muted-foreground">Time:</Label>
-                    <Select
-                      value={schedule.time_of_day}
-                      onValueChange={(value) => {
-                        setSchedule(prev => ({ ...prev, time_of_day: value }));
-                        handleSaveSchedule({ ...schedule, time_of_day: value });
-                      }}
-                    >
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="00:00">12:00 AM</SelectItem>
-                        <SelectItem value="06:00">6:00 AM</SelectItem>
-                        <SelectItem value="12:00">12:00 PM</SelectItem>
-                        <SelectItem value="18:00">6:00 PM</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {savingSchedule && (
-                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
+              <div className="mt-4 pt-4 border-t flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground">Time:</Label>
+                  <Select
+                    value={schedule.time_of_day}
+                    onValueChange={(value) => {
+                      setSchedule(prev => ({ ...prev, time_of_day: value }));
+                      handleSaveSchedule({ ...schedule, time_of_day: value });
+                    }}
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="00:00">12:00 AM</SelectItem>
+                      <SelectItem value="06:00">6:00 AM</SelectItem>
+                      <SelectItem value="12:00">12:00 PM</SelectItem>
+                      <SelectItem value="18:00">6:00 PM</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                {/* Schedule Info */}
-                <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Next Run
-                    </p>
-                    <p className="text-sm font-medium">
-                      {schedule.next_run_at 
-                        ? format(new Date(schedule.next_run_at), 'MMM d, yyyy HH:mm')
-                        : 'Pending...'}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Last Run
-                    </p>
-                    <p className="text-sm font-medium">
-                      {schedule.last_run_at 
-                        ? format(new Date(schedule.last_run_at), 'MMM d, yyyy HH:mm')
-                        : 'Never'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Setup Instructions Alert */}
-                <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
-                  <p className="text-sm font-medium text-amber-600 mb-2">⚠️ External Scheduler Required</p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    For scheduled backups to run automatically, you need to set up an external cron service 
-                    (like cron-job.org) to call the backup endpoint at your scheduled time.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7"
-                      onClick={() => {
-                        const endpoint = `https://narvjcteixgjclvjvlbn.supabase.co/functions/v1/run-scheduled-backup`;
-                        navigator.clipboard.writeText(endpoint);
-                        toast.success('Endpoint URL copied to clipboard');
-                      }}
-                    >
-                      <Copy className="h-3 w-3 mr-1" />
-                      Copy Endpoint
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7"
-                      onClick={() => window.open('https://console.cron-job.org/', '_blank')}
-                    >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      cron-job.org
-                    </Button>
-                  </div>
-                </div>
+                {savingSchedule && (
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
               </div>
             )}
           </CardContent>
