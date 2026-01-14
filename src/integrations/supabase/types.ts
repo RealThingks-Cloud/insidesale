@@ -78,6 +78,7 @@ export type Database = {
           id: string
           industry: string | null
           last_activity_date: string | null
+          last_contacted_at: string | null
           modified_by: string | null
           notes: string | null
           phone: string | null
@@ -100,6 +101,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_activity_date?: string | null
+          last_contacted_at?: string | null
           modified_by?: string | null
           notes?: string | null
           phone?: string | null
@@ -122,6 +124,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_activity_date?: string | null
+          last_contacted_at?: string | null
           modified_by?: string | null
           notes?: string | null
           phone?: string | null
@@ -943,6 +946,7 @@ export type Database = {
           click_count: number | null
           clicked_at: string | null
           contact_id: string | null
+          conversation_id: string | null
           created_at: string
           delivered_at: string | null
           first_open_ip: string | null
@@ -977,6 +981,7 @@ export type Database = {
           click_count?: number | null
           clicked_at?: string | null
           contact_id?: string | null
+          conversation_id?: string | null
           created_at?: string
           delivered_at?: string | null
           first_open_ip?: string | null
@@ -1011,6 +1016,7 @@ export type Database = {
           click_count?: number | null
           clicked_at?: string | null
           contact_id?: string | null
+          conversation_id?: string | null
           created_at?: string
           delivered_at?: string | null
           first_open_ip?: string | null
@@ -1314,6 +1320,7 @@ export type Database = {
           email: string | null
           id: string
           industry: string | null
+          last_contacted_at: string | null
           lead_name: string
           lead_status: string | null
           linkedin: string | null
@@ -1336,6 +1343,7 @@ export type Database = {
           email?: string | null
           id?: string
           industry?: string | null
+          last_contacted_at?: string | null
           lead_name: string
           lead_status?: string | null
           linkedin?: string | null
@@ -1358,6 +1366,7 @@ export type Database = {
           email?: string | null
           id?: string
           industry?: string | null
+          last_contacted_at?: string | null
           lead_name?: string
           lead_status?: string | null
           linkedin?: string | null

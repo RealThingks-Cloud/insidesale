@@ -1,9 +1,9 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
-import { Users, Lock, Database, Shield, Activity, FileText, Megaphone, History, Zap, Clock } from 'lucide-react';
+import { Users, Lock, Database, Activity, History, Zap, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUserRole } from '@/hooks/useUserRole';
-import { Loader2, ShieldAlert, BarChart3 } from 'lucide-react';
+import { Loader2, ShieldAlert, BarChart3, FileText, Megaphone } from 'lucide-react';
 import SettingsCard from './shared/SettingsCard';
 import SettingsLoadingSkeleton from './shared/SettingsLoadingSkeleton';
 
@@ -87,17 +87,19 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
   return (
     <div className="space-y-6 w-full">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
-          {adminTabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-                <Icon className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">{tab.label}</span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+        <div className="sticky top-0 z-10 bg-background pb-2 border-b border-border">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+            {adminTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only">{tab.label}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         <TabsContent value="users" className="mt-6 space-y-6">
           <SettingsCard icon={Users} title="User Directory" description="Manage user accounts, roles, and permissions">
@@ -121,16 +123,11 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="system" className="mt-6 space-y-6">
-          <SettingsCard icon={Zap} title="Edge Functions" description="Monitor and test all backend edge functions">
+        {/* System tab - Reordered: System Status, Backup, Cron Jobs, Edge Functions */}
+        <TabsContent value="system" className="mt-6 space-y-4">
+          <SettingsCard icon={Activity} title="System Status" description="Monitor system health, database stats, and storage usage">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <EdgeFunctionMonitor />
-            </Suspense>
-          </SettingsCard>
-
-          <SettingsCard icon={Clock} title="Cron Jobs & Keep-Alive" description="Scheduled job status and database connectivity">
-            <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <CronJobMonitoring />
+              <SystemStatusSettings embedded />
             </Suspense>
           </SettingsCard>
 
@@ -140,9 +137,15 @@ const AdminSettingsPage = ({ defaultSection }: AdminSettingsPageProps) => {
             </Suspense>
           </SettingsCard>
 
-          <SettingsCard icon={Activity} title="System Status" description="Monitor system health, database stats, and storage usage">
+          <SettingsCard icon={Clock} title="Cron Jobs & Keep-Alive" description="Scheduled job status and database connectivity">
             <Suspense fallback={<SettingsLoadingSkeleton />}>
-              <SystemStatusSettings />
+              <CronJobMonitoring embedded />
+            </Suspense>
+          </SettingsCard>
+
+          <SettingsCard icon={Zap} title="Edge Functions" description="Monitor and test all backend edge functions">
+            <Suspense fallback={<SettingsLoadingSkeleton />}>
+              <EdgeFunctionMonitor embedded />
             </Suspense>
           </SettingsCard>
         </TabsContent>

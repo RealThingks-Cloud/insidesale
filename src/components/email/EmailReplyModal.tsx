@@ -56,9 +56,29 @@ export const EmailReplyModal = ({
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [showOriginalMessage, setShowOriginalMessage] = useState(false);
+  const [senderDisplayName, setSenderDisplayName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const senderEmail = user?.email || "noreply@acmecrm.com";
+
+  // Fetch sender's display name from profiles
+  useEffect(() => {
+    const fetchSenderName = async () => {
+      if (!user?.id) return;
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+      
+      if (data?.full_name) {
+        setSenderDisplayName(data.full_name);
+      }
+    };
+    
+    fetchSenderName();
+  }, [user?.id]);
 
   // Determine reply-to address and name
   const replyToEmail = replyTo?.from_email || originalEmail.recipient_email;
@@ -229,7 +249,7 @@ export const EmailReplyModal = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-muted/50 rounded-lg">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">From</Label>
-              <p className="font-medium text-sm mt-1">{user?.email || "System"} ({senderEmail})</p>
+              <p className="font-medium text-sm mt-1">{senderDisplayName || user?.email || "System"}</p>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">To</Label>

@@ -60,6 +60,7 @@ interface Lead {
   modified_by?: string;
   country?: string | null;
   industry?: string | null;
+  last_contacted_at?: string | null;
 }
 
 // Use defaultLeadColumns from LeadColumnCustomizer (imported above)
@@ -163,11 +164,16 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
     moduleName: 'leads',
     defaultColumns: defaultLeadColumns,
   });
-  const [localColumns, setLocalColumns] = useState<LeadColumnConfig[]>(columns);
+  const [localColumns, setLocalColumns] = useState<LeadColumnConfig[]>([]);
+  const [isColumnsInitialized, setIsColumnsInitialized] = useState(false);
   
+  // Only initialize columns once when they first load from preferences
   useEffect(() => {
-    setLocalColumns(columns);
-  }, [columns]);
+    if (columns.length > 0 && !isColumnsInitialized) {
+      setLocalColumns(columns);
+      setIsColumnsInitialized(true);
+    }
+  }, [columns, isColumnsInitialized]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -179,6 +185,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   const [accountViewOpen, setAccountViewOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailRecipient, setEmailRecipient] = useState<EmailRecipient | null>(null);
+  const [emailLead, setEmailLead] = useState<Lead | null>(null);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
   const navigate = useNavigate();
@@ -587,6 +594,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                         case 'contact_source': return 'w-[100px]';
                         case 'linkedin': return 'w-[100px]';
                         case 'created_time': return 'w-[150px]';
+                        case 'last_contacted_at': return 'w-[150px]';
                         case 'contact_owner': return 'w-[150px]';
                         default: return 'w-[120px]';
                       }
@@ -710,7 +718,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                             ) : (
                               <span className="text-center text-muted-foreground w-full block">-</span>
                             )
-                          ) : column.field === 'created_time' || column.field === 'modified_time' ? (
+                          ) : column.field === 'created_time' || column.field === 'modified_time' || column.field === 'last_contacted_at' ? (
                             lead[column.field as keyof Lead] ? (
                               <span className="text-sm">{formatDateTimeStandard(lead[column.field as keyof Lead] as string)}</span>
                             ) : (
@@ -748,6 +756,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                                 label: "Send Email",
                                 icon: <Mail className="w-4 h-4" />,
                                 onClick: () => {
+                                  setEmailLead(lead);
                                   setEmailRecipient({
                                     name: lead.lead_name,
                                     email: lead.email,
@@ -880,8 +889,12 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
 
       <SendEmailModal
         open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
+        onOpenChange={(open) => {
+          setEmailModalOpen(open);
+          if (!open) setEmailLead(null);
+        }}
         recipient={emailRecipient}
+        leadId={emailLead?.id}
       />
 
       <MeetingModal

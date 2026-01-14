@@ -89,11 +89,16 @@ const Meetings = () => {
     moduleName: 'meetings',
     defaultColumns: defaultMeetingColumns,
   });
-  const [localColumns, setLocalColumns] = useState<MeetingColumnConfig[]>(columns);
+  const [localColumns, setLocalColumns] = useState<MeetingColumnConfig[]>([]);
+  const [isColumnsInitialized, setIsColumnsInitialized] = useState(false);
 
+  // Only initialize columns once when they first load from preferences
   useEffect(() => {
-    setLocalColumns(columns);
-  }, [columns]);
+    if (columns.length > 0 && !isColumnsInitialized) {
+      setLocalColumns(columns);
+      setIsColumnsInitialized(true);
+    }
+  }, [columns, isColumnsInitialized]);
 
   const handleCreateTask = (meeting: Meeting) => {
     const params = new URLSearchParams({
@@ -588,8 +593,8 @@ const Meetings = () => {
               <div className="relative overflow-auto flex-1 min-h-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="sticky top-0 z-20 bg-muted border-b-2">
-                    <TableHead className="w-[50px] text-center font-bold text-foreground">
+                  <TableRow className="sticky top-0 z-20 bg-muted border-b-2 shadow-sm">
+                    <TableHead className="w-[50px] text-center font-bold text-foreground bg-muted">
                       <Checkbox checked={isAllSelected} ref={el => {
                     if (el) {
                       (el as any).indeterminate = isSomeSelected;
@@ -597,44 +602,44 @@ const Meetings = () => {
                   }} onCheckedChange={handleSelectAll} aria-label="Select all" />
                     </TableHead>
                     {isColumnVisible('subject') && (
-                      <TableHead className="min-w-[200px] font-bold text-foreground px-4 py-3">
+                      <TableHead className="min-w-[200px] font-bold text-foreground px-4 py-3 bg-muted">
                         <button onClick={() => handleSort('subject')} className="group flex items-center gap-2 cursor-pointer hover:text-primary">
                           Subject {getSortIcon('subject')}
                         </button>
                       </TableHead>
                     )}
                     {isColumnVisible('date') && (
-                      <TableHead className="font-bold text-foreground px-4 py-3">
+                      <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">
                         <button onClick={() => handleSort('date')} className="group flex items-center gap-2 cursor-pointer hover:text-primary">
                           Date {getSortIcon('date')}
                         </button>
                       </TableHead>
                     )}
                     {isColumnVisible('time') && (
-                      <TableHead className="font-bold text-foreground px-4 py-3">
+                      <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">
                         <button onClick={() => handleSort('time')} className="group flex items-center gap-2 cursor-pointer hover:text-primary">
                           Time {getSortIcon('time')}
                         </button>
                       </TableHead>
                     )}
                     {isColumnVisible('lead_contact') && (
-                      <TableHead className="font-bold text-foreground px-4 py-3">
+                      <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">
                         <button onClick={() => handleSort('lead_contact')} className="group flex items-center gap-2 cursor-pointer hover:text-primary">
                           Lead/Contact {getSortIcon('lead_contact')}
                         </button>
                       </TableHead>
                     )}
                     {isColumnVisible('status') && (
-                      <TableHead className="font-bold text-foreground px-4 py-3">
+                      <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">
                         <button onClick={() => handleSort('status')} className="group flex items-center gap-2 cursor-pointer hover:text-primary">
                           Status {getSortIcon('status')}
                         </button>
                       </TableHead>
                     )}
-                    {isColumnVisible('outcome') && <TableHead className="font-bold text-foreground px-4 py-3">Outcome</TableHead>}
-                    {isColumnVisible('join_url') && <TableHead className="font-bold text-foreground px-4 py-3">Join URL</TableHead>}
-                    {isColumnVisible('organizer') && <TableHead className="font-bold text-foreground px-4 py-3">Organizer</TableHead>}
-                    <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3">Actions</TableHead>
+                    {isColumnVisible('outcome') && <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Outcome</TableHead>}
+                    {isColumnVisible('join_url') && <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Join URL</TableHead>}
+                    {isColumnVisible('organizer') && <TableHead className="font-bold text-foreground px-4 py-3 bg-muted">Organizer</TableHead>}
+                    <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3 bg-muted">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

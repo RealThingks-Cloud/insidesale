@@ -45,6 +45,7 @@ interface ReplyInfo {
   received_at: string;
   graph_message_id: string;
   in_reply_to: string | null;
+  conversation_id: string | null;
 }
 
 async function fetchInboxReplies(
@@ -77,8 +78,11 @@ async function fetchInboxReplies(
       const inReplyTo = headers.find((h: any) => h.name.toLowerCase() === 'in-reply-to')?.value;
       const references = headers.find((h: any) => h.name.toLowerCase() === 'references')?.value;
       
-      // Skip messages without reply headers (not replies)
-      if (!inReplyTo && !references) continue;
+      // Get the conversationId for fallback matching
+      const conversationId = msg.conversationId || null;
+      
+      // Skip messages without reply headers AND without conversationId (not replies)
+      if (!inReplyTo && !references && !conversationId) continue;
       
       // Extract the message ID being replied to
       let replyToMessageId = inReplyTo;
@@ -88,20 +92,23 @@ async function fetchInboxReplies(
         replyToMessageId = refList[refList.length - 1];
       }
       
+      // Clean the message ID (remove angle brackets if present)
       if (replyToMessageId) {
-        // Clean the message ID (remove angle brackets if present)
         replyToMessageId = replyToMessageId.replace(/^<|>$/g, '');
-        
-        replies.push({
-          from_email: msg.from?.emailAddress?.address || '',
-          from_name: msg.from?.emailAddress?.name || null,
-          subject: msg.subject || '',
-          body_preview: (msg.bodyPreview || '').substring(0, 500),
-          received_at: msg.receivedDateTime,
-          graph_message_id: msg.id,
-          in_reply_to: replyToMessageId,
-        });
       }
+      
+      // Include messages that have either reply headers OR a conversationId
+      // conversationId allows us to match even when reply headers are missing
+      replies.push({
+        from_email: msg.from?.emailAddress?.address || '',
+        from_name: msg.from?.emailAddress?.name || null,
+        subject: msg.subject || '',
+        body_preview: (msg.bodyPreview || '').substring(0, 500),
+        received_at: msg.receivedDateTime,
+        graph_message_id: msg.id,
+        in_reply_to: replyToMessageId || null,
+        conversation_id: conversationId,
+      });
     }
   } catch (error) {
     console.error(`Error fetching inbox for ${senderEmail}:`, error);
@@ -147,9 +154,8 @@ serve(async (req: Request) => {
     
     const { data: sentEmails, error: sentError } = await supabase
       .from('email_history')
-      .select('id, sender_email, recipient_email, subject, message_id, sent_by, reply_count, sent_at')
+      .select('id, sender_email, recipient_email, subject, message_id, conversation_id, sent_by, reply_count, sent_at')
       .gte('sent_at', sinceDate)
-      .not('message_id', 'is', null)
       .not('status', 'eq', 'bounced')
       .order('sent_at', { ascending: false });
 
@@ -209,41 +215,57 @@ serve(async (req: Request) => {
       const replies = await fetchInboxReplies(accessToken, senderEmail, sinceDate);
       console.log(`Found ${replies.length} potential replies in inbox`);
       
-      // Create a map of message_id to email for quick lookup
+      // Create maps for quick lookup
       const messageIdToEmail = new Map<string, typeof emails[0]>();
+      const conversationIdToEmail = new Map<string, typeof emails[0]>();
+      
       for (const email of emails) {
         if (email.message_id) {
           // Store both with and without angle brackets
           messageIdToEmail.set(email.message_id, email);
           messageIdToEmail.set(email.message_id.replace(/^<|>$/g, ''), email);
         }
+        // Also index by conversation_id for fallback matching
+        if (email.conversation_id) {
+          conversationIdToEmail.set(email.conversation_id, email);
+        }
       }
       
       for (const reply of replies) {
-        if (!reply.in_reply_to) continue;
+        let originalEmail: typeof emails[0] | undefined = undefined;
         
-        // Debug: log what we're trying to match
-        console.log(`Trying to match reply In-Reply-To: ${reply.in_reply_to}`);
-        console.log(`Available message_ids: ${Array.from(messageIdToEmail.keys()).slice(0, 5).join(', ')}...`);
-        
-        // Try to match the reply to a sent email (try multiple formats)
-        let originalEmail = messageIdToEmail.get(reply.in_reply_to);
-        
-        if (!originalEmail) {
-          // Try with angle brackets
-          originalEmail = messageIdToEmail.get(`<${reply.in_reply_to}>`);
+        // First, try to match by In-Reply-To message ID (most reliable)
+        if (reply.in_reply_to) {
+          console.log(`Trying to match reply In-Reply-To: ${reply.in_reply_to}`);
+          
+          originalEmail = messageIdToEmail.get(reply.in_reply_to);
+          
+          if (!originalEmail) {
+            // Try with angle brackets
+            originalEmail = messageIdToEmail.get(`<${reply.in_reply_to}>`);
+          }
+          
+          if (!originalEmail) {
+            // Try without angle brackets
+            const cleanedId = reply.in_reply_to.replace(/^<|>$/g, '');
+            originalEmail = messageIdToEmail.get(cleanedId);
+          }
         }
         
-        if (!originalEmail) {
-          // Try without angle brackets
-          const cleanedId = reply.in_reply_to.replace(/^<|>$/g, '');
-          originalEmail = messageIdToEmail.get(cleanedId);
+        // Fallback: Match by conversationId if In-Reply-To matching failed
+        if (!originalEmail && reply.conversation_id) {
+          console.log(`Fallback: Trying to match by conversationId: ${reply.conversation_id}`);
+          originalEmail = conversationIdToEmail.get(reply.conversation_id);
+          
+          if (originalEmail) {
+            console.log(`✅ Matched via conversationId to email: ${originalEmail.id}`);
+          }
         }
         
         if (originalEmail) {
           console.log(`✅ Found matching email: ${originalEmail.id}`);
-        } else {
-          console.log(`❌ No match found for In-Reply-To: ${reply.in_reply_to}`);
+        } else if (reply.in_reply_to || reply.conversation_id) {
+          console.log(`❌ No match found for In-Reply-To: ${reply.in_reply_to}, conversationId: ${reply.conversation_id}`);
         }
         
         if (originalEmail) {

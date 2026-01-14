@@ -46,6 +46,10 @@ interface SystemStats {
   queryErrors: string[];
 }
 
+interface SystemStatusSettingsProps {
+  embedded?: boolean;
+}
+
 const TABLE_CONFIG: { name: string; icon: React.ReactNode; label: string }[] = [
   { name: 'leads', icon: <FileText className="h-4 w-4" />, label: 'Leads' },
   { name: 'contacts', icon: <Users className="h-4 w-4" />, label: 'Contacts' },
@@ -58,12 +62,11 @@ const TABLE_CONFIG: { name: string; icon: React.ReactNode; label: string }[] = [
   { name: 'notifications', icon: <Bell className="h-4 w-4" />, label: 'Notifications' },
 ];
 
-const SystemStatusSettings = () => {
+const SystemStatusSettings = ({ embedded = false }: SystemStatusSettingsProps) => {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchSystemStats = useCallback(async () => {
     setLoading(true);
@@ -74,7 +77,6 @@ const SystemStatusSettings = () => {
       const tableStats: TableStats[] = [];
       let totalRecords = 0;
 
-      // Fetch counts for all tables in parallel
       const countPromises = TABLE_CONFIG.map(async (config) => {
         try {
           const { count, error } = await supabase
@@ -86,10 +88,9 @@ const SystemStatusSettings = () => {
             return { table_name: config.name, row_count: 0, icon: config.icon };
           }
           
-          const rowCount = count || 0;
           return { 
             table_name: config.name, 
-            row_count: rowCount,
+            row_count: count || 0,
             icon: config.icon 
           };
         } catch (err: any) {
@@ -104,10 +105,8 @@ const SystemStatusSettings = () => {
         totalRecords += result.row_count;
       });
 
-      // Sort by record count descending
       tableStats.sort((a, b) => b.row_count - a.row_count);
 
-      // Fetch last backup
       let lastBackup: string | null = null;
       let lastBackupError = false;
       try {
@@ -127,7 +126,6 @@ const SystemStatusSettings = () => {
         lastBackupError = true;
       }
 
-      // Fetch keep-alive status
       let keepAliveStatus: SystemStats['keepAliveStatus'] = 'unknown';
       let lastKeepAlive: string | null = null;
       try {
@@ -153,11 +151,8 @@ const SystemStatusSettings = () => {
         // Ignore keep-alive errors
       }
 
-      // Estimate storage (rough calculation based on records)
-      // Average ~1KB per record across all tables
       const estimatedStorageMB = totalRecords * 0.001;
 
-      // Get unique user count from profiles
       const { count: userCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true });
@@ -187,22 +182,13 @@ const SystemStatusSettings = () => {
     fetchSystemStats();
   }, [fetchSystemStats]);
 
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchSystemStats, 30000); // 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, fetchSystemStats]);
-
   const getHealthStatus = () => {
     if (!stats) return { status: 'unknown', color: 'text-muted-foreground', icon: AlertCircle };
     
-    // Check for query errors
     if (stats.queryErrors.length > 0) {
       return { status: 'Degraded', color: 'text-yellow-500', icon: AlertTriangle };
     }
     
-    // Check keep-alive status
     if (stats.keepAliveStatus === 'error') {
       return { status: 'Error', color: 'text-destructive', icon: XCircle };
     }
@@ -235,29 +221,23 @@ const SystemStatusSettings = () => {
     return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
-  // Loading skeleton
   if (loading && !stats) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <Skeleton className="h-6 w-32 mb-2" />
-            <Skeleton className="h-4 w-48" />
+      <div className="space-y-4">
+        {embedded && (
+          <div className="flex items-center justify-end">
+            <Skeleton className="h-8 w-20" />
           </div>
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-9 w-9" />
-            <Skeleton className="h-9 w-24" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map(i => (
             <Card key={i} className="border-l-4 border-l-muted">
-              <CardContent className="pt-4 pb-4">
+              <CardContent className="py-3 px-4">
                 <div className="flex items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
                   <div>
-                    <Skeleton className="h-3 w-20 mb-2" />
-                    <Skeleton className="h-6 w-12" />
+                    <Skeleton className="h-3 w-16 mb-1" />
+                    <Skeleton className="h-5 w-10" />
                   </div>
                 </div>
               </CardContent>
@@ -265,14 +245,13 @@ const SystemStatusSettings = () => {
           ))}
         </div>
         <Card>
-          <CardHeader className="pb-4">
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-4 w-48 mt-1" />
+          <CardHeader className="pb-3 pt-4">
+            <Skeleton className="h-4 w-28" />
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {[1, 2, 3, 4, 5, 6].map(i => (
-                <Skeleton key={i} className="h-14 rounded-lg" />
+                <Skeleton key={i} className="h-12 rounded-lg" />
               ))}
             </div>
           </CardContent>
@@ -282,43 +261,46 @@ const SystemStatusSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">System Status</h3>
-          <p className="text-sm text-muted-foreground">
-            Monitor system health and resource usage
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={autoRefresh ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setAutoRefresh(!autoRefresh)}
-                >
-                  <Activity className={`h-4 w-4 ${autoRefresh ? 'animate-pulse' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{autoRefresh ? 'Auto-refresh ON (30s)' : 'Enable auto-refresh'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button variant="outline" onClick={fetchSystemStats} disabled={loading}>
+    <div className="space-y-4">
+      {/* Header - only show when not embedded */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">System Status</h3>
+            <p className="text-sm text-muted-foreground">
+              Monitor system health and resource usage
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchSystemStats} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
-      </div>
+      )}
+
+      {/* Compact action row for embedded mode */}
+      {embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HealthIcon className={`h-4 w-4 ${healthStatus.color}`} />
+            <span className={`font-medium text-sm ${healthStatus.color}`}>
+              {loading ? 'Loading...' : healthStatus.status}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              • {stats?.totalRecords.toLocaleString()} records
+            </span>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchSystemStats} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
           <XCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="text-sm">{error}</AlertDescription>
         </Alert>
       )}
 
@@ -326,53 +308,50 @@ const SystemStatusSettings = () => {
       {stats?.queryErrors && stats.queryErrors.length > 0 && (
         <Alert className="border-yellow-500/50 bg-yellow-500/5">
           <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <AlertDescription className="text-muted-foreground">
+          <AlertDescription className="text-xs text-muted-foreground">
             Some queries failed: {stats.queryErrors.slice(0, 2).join(', ')}
-            {stats.queryErrors.length > 2 && ` and ${stats.queryErrors.length - 2} more`}
+            {stats.queryErrors.length > 2 && ` (+${stats.queryErrors.length - 2})`}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Health Overview - Improved Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Health Overview - Compact */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className={`border-l-4 ${
           healthStatus.status === 'Healthy' ? 'border-l-green-500' :
           healthStatus.status === 'Warning' || healthStatus.status === 'Degraded' ? 'border-l-yellow-500' :
           healthStatus.status === 'Error' ? 'border-l-destructive' :
           'border-l-muted-foreground'
         }`}>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-2">
+              <div className={`p-1.5 rounded-md ${
                 healthStatus.status === 'Healthy' ? 'bg-green-500/10' :
                 healthStatus.status === 'Warning' || healthStatus.status === 'Degraded' ? 'bg-yellow-500/10' :
                 healthStatus.status === 'Error' ? 'bg-destructive/10' :
                 'bg-muted'
               }`}>
-                <Server className={`h-5 w-5 ${healthStatus.color}`} />
+                <Server className={`h-4 w-4 ${healthStatus.color}`} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium">System Health</p>
-                <div className="flex items-center gap-2">
-                  <HealthIcon className={`h-4 w-4 ${healthStatus.color}`} />
-                  <span className={`text-sm font-semibold ${healthStatus.color}`}>
-                    {loading ? '...' : healthStatus.status}
-                  </span>
-                </div>
+                <p className="text-[10px] text-muted-foreground">Health</p>
+                <p className={`text-sm font-semibold ${healthStatus.color}`}>
+                  {loading ? '...' : healthStatus.status}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Database className="h-5 w-5 text-blue-500" />
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-blue-500/10 rounded-md">
+                <Database className="h-4 w-4 text-blue-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Total Records</p>
-                <p className="text-xl font-bold">
+                <p className="text-[10px] text-muted-foreground">Records</p>
+                <p className="text-sm font-bold">
                   {loading ? '...' : stats?.totalRecords.toLocaleString()}
                 </p>
               </div>
@@ -381,14 +360,14 @@ const SystemStatusSettings = () => {
         </Card>
 
         <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <Users className="h-5 w-5 text-purple-500" />
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-purple-500/10 rounded-md">
+                <Users className="h-4 w-4 text-purple-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Registered Users</p>
-                <p className="text-xl font-bold">
+                <p className="text-[10px] text-muted-foreground">Users</p>
+                <p className="text-sm font-bold">
                   {loading ? '...' : stats?.registeredUsers}
                 </p>
               </div>
@@ -400,15 +379,15 @@ const SystemStatusSettings = () => {
           <Tooltip>
             <TooltipTrigger asChild>
               <Card className="border-l-4 border-l-orange-500 cursor-help">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-500/10 rounded-lg">
-                      <HardDrive className="h-5 w-5 text-orange-500" />
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-orange-500/10 rounded-md">
+                      <HardDrive className="h-4 w-4 text-orange-500" />
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium">Est. Storage*</p>
-                      <p className="text-xl font-bold">
-                        {loading ? '...' : `${stats?.storageUsed.toFixed(2)} MB`}
+                      <p className="text-[10px] text-muted-foreground">Storage*</p>
+                      <p className="text-sm font-bold">
+                        {loading ? '...' : `${stats?.storageUsed.toFixed(1)} MB`}
                       </p>
                     </div>
                   </div>
@@ -416,46 +395,45 @@ const SystemStatusSettings = () => {
               </Card>
             </TooltipTrigger>
             <TooltipContent>
-              <p>*Estimated based on record count (~1KB/record).<br />Actual storage may vary.</p>
+              <p className="text-xs">*Estimated (~1KB/record)</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
-      {/* Database Tables - Improved Grid Layout */}
+      {/* Database Tables - Compact */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Database className="h-5 w-5" />
+        <CardHeader className="pb-2 pt-3 px-4">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Database className="h-4 w-4" />
             Database Tables
           </CardTitle>
-          <CardDescription>Record counts for all CRM tables</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-3">
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {[1, 2, 3, 4, 5, 6].map(i => (
-                <Skeleton key={i} className="h-14 rounded-lg" />
+                <Skeleton key={i} className="h-10 rounded-lg" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {stats?.tables.map((table) => (
                 <div 
                   key={table.table_name} 
-                  className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors border"
+                  className="flex items-center justify-between p-2 bg-muted/30 hover:bg-muted/50 rounded-md transition-colors border text-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-background rounded-md border">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-background rounded border">
                       {table.icon}
                     </div>
-                    <span className="font-medium text-sm">
+                    <span className="font-medium text-xs">
                       {formatTableName(table.table_name)}
                     </span>
                   </div>
                   <Badge 
                     variant={getRecordBadgeVariant(table.row_count)}
-                    className="min-w-[60px] justify-center"
+                    className="text-[10px] h-5 px-1.5"
                   >
                     {table.row_count.toLocaleString()}
                   </Badge>
@@ -466,45 +444,48 @@ const SystemStatusSettings = () => {
         </CardContent>
       </Card>
 
-      {/* System Info - Improved */}
+      {/* System Info - Compact */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-5 w-5" />
-            System Information
+        <CardHeader className="pb-2 pt-3 px-4">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Activity className="h-4 w-4" />
+            System Info
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Last Backup</span>
+        <CardContent className="px-4 pb-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border text-xs">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                <span>Last Backup</span>
               </div>
-              <span className="text-sm font-medium">
-                {stats?.lastBackupError 
-                  ? 'Unknown'
-                  : stats?.lastBackup 
-                    ? format(new Date(stats.lastBackup), 'MMM d, yyyy HH:mm')
-                    : 'Never'}
+              <span className="font-medium">
+                {stats?.lastBackupError ? 'Error' : 
+                 stats?.lastBackup ? format(new Date(stats.lastBackup), 'MMM d, HH:mm') : 'Never'}
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Last Refreshed</span>
+            <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border text-xs">
+              <div className="flex items-center gap-1.5">
+                <Activity className="h-3 w-3 text-muted-foreground" />
+                <span>Keep-Alive</span>
               </div>
-              <span className="text-sm font-medium">
+              <Badge 
+                variant={stats?.keepAliveStatus === 'active' ? 'default' : 
+                        stats?.keepAliveStatus === 'warning' ? 'secondary' : 'destructive'}
+                className="text-[10px] h-4 px-1.5"
+              >
+                {stats?.keepAliveStatus === 'active' ? 'Active' : 
+                 stats?.keepAliveStatus === 'warning' ? 'Warning' : 
+                 stats?.keepAliveStatus === 'error' ? 'Inactive' : 'Unknown'}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border text-xs">
+              <div className="flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                <span>Last Refresh</span>
+              </div>
+              <span className="font-medium">
                 {format(lastRefresh, 'HH:mm:ss')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Tables Monitored</span>
-              </div>
-              <span className="text-sm font-medium">
-                {TABLE_CONFIG.length}
               </span>
             </div>
           </div>

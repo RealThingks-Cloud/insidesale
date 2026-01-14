@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RelatedTasksSection } from "@/components/shared/RelatedTasksSection";
 import { Task } from "@/types/task";
-import { Building2, Globe, Phone, MapPin, Factory, Clock, Plus, ExternalLink, Mail, Pencil, ListTodo, History, Link2, Activity, User, UserPlus, Briefcase, Calendar, Loader2 } from "lucide-react";
+import { Building2, Globe, Phone, MapPin, Factory, Clock, Plus, ExternalLink, Mail, Pencil, ListTodo, History, Link2, Activity, User, UserPlus, Briefcase, Calendar, Loader2, MessageSquare } from "lucide-react";
 import { RecordChangeHistory } from "@/components/shared/RecordChangeHistory";
 import { format } from "date-fns";
 import { formatDateTimeStandard } from "@/utils/formatUtils";
@@ -20,6 +20,7 @@ import { AttachRecordModal } from "@/components/shared/AttachRecordModal";
 import { ContactDetailModal } from "@/components/contacts/ContactDetailModal";
 import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
 import { getAccountStatusColor } from "@/utils/accountStatusUtils";
+import { EntityEmailHistory } from "@/components/shared/EntityEmailHistory";
 interface Account {
   id: string;
   company_name: string;
