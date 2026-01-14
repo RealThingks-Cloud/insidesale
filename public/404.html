@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script>
+      // GitHub Pages SPA redirect handler
+      // Stores the current path and redirects to index for React Router to handle
+      sessionStorage.setItem('redirect', window.location.href);
+      window.location.replace('/');
+    </script>
+  </head>
+  <body>
+    <noscript>Redirecting to the application...</noscript>
+  </body>
+</html>
