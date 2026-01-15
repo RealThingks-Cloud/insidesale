@@ -21,19 +21,23 @@ interface ContactColumnCustomizerProps {
   isSaving?: boolean;
 }
 
-// Updated default columns - removed redundant fields (region, industry, website are in Account; engagement metrics are in detail view)
+// Fields that must always be visible (cannot be hidden by user)
+export const LOCKED_CONTACT_FIELDS = ['email', 'email_status'];
+
+// Updated default columns - email_status always next to email
 export const defaultContactColumns: ContactColumnConfig[] = [
   { field: 'contact_name', label: 'Contact Name', visible: true, order: 0 },
   { field: 'account_company_name', label: 'Company Name', visible: true, order: 1 },
   { field: 'position', label: 'Position', visible: true, order: 2 },
   { field: 'email', label: 'Email', visible: true, order: 3 },
-  { field: 'phone_no', label: 'Phone', visible: true, order: 4 },
-  { field: 'contact_source', label: 'Source', visible: true, order: 5 },
-  { field: 'linkedin', label: 'LinkedIn', visible: false, order: 6 },
-  { field: 'tags', label: 'Tags', visible: false, order: 7 },
-  { field: 'last_contacted_at', label: 'Last Contacted', visible: false, order: 8 },
-  { field: 'created_time', label: 'Created Date', visible: false, order: 9 },
-  { field: 'contact_owner', label: 'Contact Owner', visible: true, order: 10 },
+  { field: 'email_status', label: 'Email Status', visible: true, order: 4 },  // Always next to email
+  { field: 'phone_no', label: 'Phone', visible: true, order: 5 },
+  { field: 'contact_source', label: 'Source', visible: true, order: 6 },
+  { field: 'linkedin', label: 'LinkedIn', visible: false, order: 7 },
+  { field: 'tags', label: 'Tags', visible: false, order: 8 },
+  { field: 'last_contacted_at', label: 'Last Contacted', visible: false, order: 9 },
+  { field: 'created_time', label: 'Created Date', visible: false, order: 10 },
+  { field: 'contact_owner', label: 'Contact Owner', visible: true, order: 11 },
 ];
 
 export const ContactColumnCustomizer = ({
@@ -74,6 +78,9 @@ export const ContactColumnCustomizer = ({
   }, [open, columns, isInitialized]);
 
   const handleVisibilityChange = (field: string, visible: boolean) => {
+    // Prevent hiding locked fields
+    if (LOCKED_CONTACT_FIELDS.includes(field) && !visible) return;
+    
     const updatedColumns = localColumns.map(col =>
       col.field === field ? { ...col, visible } : col
     );
@@ -105,27 +112,34 @@ export const ContactColumnCustomizer = ({
           </div>
 
           <div className="space-y-2 max-h-[400px] overflow-y-auto p-1">
-            {localColumns.map((column) => (
-              <div
-                key={column.field}
-                className="flex items-center space-x-3 p-3 border rounded-lg bg-card hover:bg-muted/30"
-              >
-                <Checkbox
-                  id={column.field}
-                  checked={column.visible}
-                  onCheckedChange={(checked) =>
-                    handleVisibilityChange(column.field, Boolean(checked))
-                  }
-                />
-
-                <Label
-                  htmlFor={column.field}
-                  className="flex-1 cursor-pointer"
+            {localColumns.map((column) => {
+              const isLocked = LOCKED_CONTACT_FIELDS.includes(column.field);
+              return (
+                <div
+                  key={column.field}
+                  className={`flex items-center space-x-3 p-3 border rounded-lg bg-card hover:bg-muted/30 ${isLocked ? 'opacity-75' : ''}`}
                 >
-                  {column.label}
-                </Label>
-              </div>
-            ))}
+                  <Checkbox
+                    id={column.field}
+                    checked={column.visible}
+                    disabled={isLocked}
+                    onCheckedChange={(checked) =>
+                      handleVisibilityChange(column.field, Boolean(checked))
+                    }
+                  />
+
+                  <Label
+                    htmlFor={column.field}
+                    className={`flex-1 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    {column.label}
+                    {isLocked && (
+                      <span className="text-xs text-muted-foreground ml-2">(always visible)</span>
+                    )}
+                  </Label>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex justify-between gap-3 pt-4 border-t">

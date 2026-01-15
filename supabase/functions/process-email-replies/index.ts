@@ -317,25 +317,26 @@ serve(async (req: Request) => {
             continue;
           }
           
-          // Check if we already have this reply
-          const { data: existingReply } = await supabase
+          // Check if we already have this reply using maybeSingle() to handle duplicates gracefully
+          const { data: existingReply, error: checkError } = await supabase
             .from('email_replies')
             .select('id')
             .eq('email_history_id', originalEmail.id)
             .eq('graph_message_id', reply.graph_message_id)
-            .single();
+            .maybeSingle();
           
-          if (existingReply) {
+          // Skip if exists OR if there's a check error (duplicate handling)
+          if (existingReply || checkError) {
             console.log(`Reply already recorded for email ${originalEmail.id}`);
             continue;
           }
           
           console.log(`✅ MATCH! Found reply to email ${originalEmail.id} from ${reply.from_email}`);
           
-          // Insert the reply record
+          // Insert the reply record using upsert to handle race conditions
           const { error: insertError } = await supabase
             .from('email_replies')
-            .insert({
+            .upsert({
               email_history_id: originalEmail.id,
               from_email: reply.from_email,
               from_name: reply.from_name,
@@ -343,6 +344,9 @@ serve(async (req: Request) => {
               body_preview: reply.body_preview,
               received_at: reply.received_at,
               graph_message_id: reply.graph_message_id,
+            }, {
+              onConflict: 'email_history_id,graph_message_id',
+              ignoreDuplicates: true
             });
           
           if (insertError) {
@@ -350,12 +354,16 @@ serve(async (req: Request) => {
             continue;
           }
           
-          // Update the email_history with reply info
-          const currentReplyCount = originalEmail.reply_count || 0;
-          const isFirstReply = currentReplyCount === 0;
+          // Count actual replies to get accurate reply_count
+          const { count: actualReplyCount } = await supabase
+            .from('email_replies')
+            .select('*', { count: 'exact', head: true })
+            .eq('email_history_id', originalEmail.id);
+          
+          const isFirstReply = (actualReplyCount || 1) === 1;
           
           const updateData: any = {
-            reply_count: currentReplyCount + 1,
+            reply_count: actualReplyCount || 1,
             last_reply_at: reply.received_at,
             status: 'replied',
           };
@@ -372,6 +380,40 @@ serve(async (req: Request) => {
           if (updateError) {
             console.error(`Failed to update email history:`, updateError);
             continue;
+          }
+
+          // Update last_contacted_at on the linked entity with the reply's received_at timestamp
+          // This ensures incoming replies update the "Last Contacted" field
+          const { data: emailRecord } = await supabase
+            .from('email_history')
+            .select('contact_id, lead_id, account_id')
+            .eq('id', originalEmail.id)
+            .single();
+
+          if (emailRecord) {
+            const replyReceivedAt = reply.received_at;
+            
+            if (emailRecord.contact_id) {
+              await supabase
+                .from('contacts')
+                .update({ last_contacted_at: replyReceivedAt })
+                .eq('id', emailRecord.contact_id)
+                .lt('last_contacted_at', replyReceivedAt);
+            }
+            if (emailRecord.lead_id) {
+              await supabase
+                .from('leads')
+                .update({ last_contacted_at: replyReceivedAt })
+                .eq('id', emailRecord.lead_id)
+                .lt('last_contacted_at', replyReceivedAt);
+            }
+            if (emailRecord.account_id) {
+              await supabase
+                .from('accounts')
+                .update({ last_contacted_at: replyReceivedAt })
+                .eq('id', emailRecord.account_id)
+                .lt('last_contacted_at', replyReceivedAt);
+            }
           }
           
           // Create notification for the sender

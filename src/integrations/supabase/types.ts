@@ -523,6 +523,9 @@ export type Database = {
           description: string | null
           email: string | null
           email_clicks: number | null
+          email_invalid: boolean | null
+          email_invalid_at: string | null
+          email_invalid_reason: string | null
           email_opens: number | null
           engagement_score: number | null
           id: string
@@ -551,6 +554,9 @@ export type Database = {
           description?: string | null
           email?: string | null
           email_clicks?: number | null
+          email_invalid?: boolean | null
+          email_invalid_at?: string | null
+          email_invalid_reason?: string | null
           email_opens?: number | null
           engagement_score?: number | null
           id?: string
@@ -579,6 +585,9 @@ export type Database = {
           description?: string | null
           email?: string | null
           email_clicks?: number | null
+          email_invalid?: boolean | null
+          email_invalid_at?: string | null
+          email_invalid_reason?: string | null
           email_opens?: number | null
           engagement_score?: number | null
           id?: string
@@ -1318,6 +1327,9 @@ export type Database = {
           created_time: string | null
           description: string | null
           email: string | null
+          email_invalid: boolean | null
+          email_invalid_at: string | null
+          email_invalid_reason: string | null
           id: string
           industry: string | null
           last_contacted_at: string | null
@@ -1341,6 +1353,9 @@ export type Database = {
           created_time?: string | null
           description?: string | null
           email?: string | null
+          email_invalid?: boolean | null
+          email_invalid_at?: string | null
+          email_invalid_reason?: string | null
           id?: string
           industry?: string | null
           last_contacted_at?: string | null
@@ -1364,6 +1379,9 @@ export type Database = {
           created_time?: string | null
           description?: string | null
           email?: string | null
+          email_invalid?: boolean | null
+          email_invalid_at?: string | null
+          email_invalid_reason?: string | null
           id?: string
           industry?: string | null
           last_contacted_at?: string | null

@@ -303,13 +303,16 @@ serve(async (req: Request) => {
         if (matchingNDR) {
           console.log(`✅ MATCH! Found bounce for ${check.recipient_email}: ${matchingNDR.reason}`);
           
+          const bounceReason = matchingNDR.reason || 'Email delivery failed';
+          const bouncedAt = matchingNDR.receivedDateTime || new Date().toISOString();
+          
           const { error } = await supabase
             .from('email_history')
             .update({
               status: 'bounced',
               bounce_type: 'hard',
-              bounce_reason: matchingNDR.reason || 'Email delivery failed',
-              bounced_at: matchingNDR.receivedDateTime || new Date().toISOString(),
+              bounce_reason: bounceReason,
+              bounced_at: bouncedAt,
               open_count: 0,
               unique_opens: 0,
               opened_at: null,
@@ -320,6 +323,42 @@ serve(async (req: Request) => {
           if (!error) {
             pendingBouncesFound++;
             bouncedPendingIds.push(check.id);
+            
+            // Mark the entity's email as invalid
+            // First get the email_history to find contact_id or lead_id
+            const { data: emailRecord } = await supabase
+              .from('email_history')
+              .select('contact_id, lead_id')
+              .eq('id', check.email_history_id)
+              .single();
+            
+            if (emailRecord) {
+              // Mark contact email as invalid
+              if (emailRecord.contact_id) {
+                await supabase
+                  .from('contacts')
+                  .update({
+                    email_invalid: true,
+                    email_invalid_reason: bounceReason,
+                    email_invalid_at: bouncedAt,
+                  })
+                  .eq('id', emailRecord.contact_id);
+                console.log(`Marked contact ${emailRecord.contact_id} email as invalid`);
+              }
+              
+              // Mark lead email as invalid
+              if (emailRecord.lead_id) {
+                await supabase
+                  .from('leads')
+                  .update({
+                    email_invalid: true,
+                    email_invalid_reason: bounceReason,
+                    email_invalid_at: bouncedAt,
+                  })
+                  .eq('id', emailRecord.lead_id);
+                console.log(`Marked lead ${emailRecord.lead_id} email as invalid`);
+              }
+            }
             
             // Create notification for bounce - check for duplicates first
             if (emailHistory.sent_by) {
@@ -334,11 +373,29 @@ serve(async (req: Request) => {
                 .maybeSingle();
 
               if (!existingNotif) {
+                // Determine entity name for notification
+                let entityContext = '';
+                if (emailRecord?.contact_id) {
+                  const { data: contact } = await supabase
+                    .from('contacts')
+                    .select('contact_name')
+                    .eq('id', emailRecord.contact_id)
+                    .single();
+                  if (contact) entityContext = ` (Contact: ${contact.contact_name})`;
+                } else if (emailRecord?.lead_id) {
+                  const { data: lead } = await supabase
+                    .from('leads')
+                    .select('lead_name')
+                    .eq('id', emailRecord.lead_id)
+                    .single();
+                  if (lead) entityContext = ` (Lead: ${lead.lead_name})`;
+                }
+                
                 const { error: notifError } = await supabase
                   .from('notifications')
                   .insert({
                     user_id: emailHistory.sent_by,
-                    message: `Email to ${check.recipient_email} could not be delivered - address invalid or doesn't exist`,
+                    message: `Email to ${check.recipient_email}${entityContext} bounced. Please update the email address.`,
                     notification_type: 'email_bounced',
                     status: 'unread',
                   });

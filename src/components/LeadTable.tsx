@@ -6,6 +6,7 @@ import { useCRUDAudit } from "@/hooks/useCRUDAudit";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useColumnPreferences } from "@/hooks/useColumnPreferences";
+import { useEntityEmailStats } from "@/hooks/useEntityEmailStats";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, CalendarPlus, CheckSquare, FileText, Plus, Eye, User } from "lucide-react";
 import { RowActionsDropdown, Edit, Trash2, Mail, RefreshCw } from "./RowActionsDropdown";
 import { LeadModal } from "./LeadModal";
-import { LeadColumnCustomizer, LeadColumnConfig, defaultLeadColumns } from "./LeadColumnCustomizer";
+import { LeadColumnCustomizer, LeadColumnConfig, defaultLeadColumns, LOCKED_LEAD_FIELDS } from "./LeadColumnCustomizer";
 import { LeadStatusFilter } from "./LeadStatusFilter";
 import { ConvertToDealModal } from "./ConvertToDealModal";
 import { LeadDeleteConfirmDialog } from "./LeadDeleteConfirmDialog";
@@ -28,6 +29,8 @@ import { LeadDetailModal } from "./leads/LeadDetailModal";
 import { HighlightedText } from "./shared/HighlightedText";
 import { ClearFiltersButton } from "./shared/ClearFiltersButton";
 import { TableSkeleton } from "./shared/Skeletons";
+import { EmailStatusCell } from "./shared/EmailStatusCell";
+import { InvalidEmailCell } from "./shared/InvalidEmailCell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { moveFieldToEnd } from "@/utils/columnOrderUtils";
 import { formatDateTimeStandard } from "@/utils/formatUtils";
@@ -61,6 +64,9 @@ interface Lead {
   country?: string | null;
   industry?: string | null;
   last_contacted_at?: string | null;
+  email_invalid?: boolean;
+  email_invalid_reason?: string | null;
+  email_invalid_at?: string | null;
 }
 
 // Use defaultLeadColumns from LeadColumnCustomizer (imported above)
@@ -451,11 +457,35 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
   const { displayNames } = useUserDisplayNames(ownerIds);
   
   // Memoize visible columns to prevent position changes on re-render
-  const visibleColumns = useMemo(() => moveFieldToEnd(
-    localColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
-    "contact_owner",
-  ), [localColumns]);
+  // Force locked fields (email, email_status) to always be visible and adjacent
+  const visibleColumns = useMemo(() => {
+    // Ensure locked fields are always visible
+    const columnsWithLocked = localColumns.map(col => 
+      LOCKED_LEAD_FIELDS.includes(col.field) ? { ...col, visible: true } : col
+    );
+    
+    // Ensure email_status is always adjacent to email
+    const emailCol = columnsWithLocked.find(c => c.field === 'email');
+    if (emailCol) {
+      const adjustedColumns = columnsWithLocked.map(col => 
+        col.field === 'email_status' ? { ...col, order: emailCol.order + 0.5 } : col
+      );
+      return moveFieldToEnd(
+        adjustedColumns.filter((col) => col.visible).sort((a, b) => a.order - b.order),
+        "contact_owner",
+      );
+    }
+    
+    return moveFieldToEnd(
+      columnsWithLocked.filter((col) => col.visible).sort((a, b) => a.order - b.order),
+      "contact_owner",
+    );
+  }, [localColumns]);
   const pageLeads = getCurrentPageLeads();
+  
+  // Get lead IDs for email stats
+  const pageLeadIds = useMemo(() => pageLeads.map(l => l.id), [pageLeads]);
+  const { data: emailStatsMap = {} } = useEntityEmailStats('lead', pageLeadIds);
 
   // Check if any filters are active
   const hasActiveFilters = debouncedSearchTerm !== "" || statusFilter !== "all" || ownerFilter !== "all" || dateFromFilter !== null || dateToFilter !== null;
@@ -702,10 +732,38 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                             )
                           ) : column.field === 'email' ? (
                             lead.email ? (
-                              <HighlightedText text={lead.email} highlight={debouncedSearchTerm} />
+                              <InvalidEmailCell
+                                email={lead.email}
+                                isInvalid={lead.email_invalid}
+                                invalidReason={lead.email_invalid_reason}
+                                invalidAt={lead.email_invalid_at}
+                                searchTerm={debouncedSearchTerm}
+                                onEditClick={() => {
+                                  setEditingLead(lead);
+                                  setShowModal(true);
+                                }}
+                              />
                             ) : (
                               <span className="text-center text-muted-foreground w-full block">-</span>
                             )
+                          ) : column.field === 'email_status' ? (
+                            <EmailStatusCell
+                              stats={emailStatsMap[lead.id] || null}
+                              entityId={lead.id}
+                              entityType="lead"
+                              entityName={lead.lead_name}
+                              entityEmail={lead.email || undefined}
+                              onSendEmail={() => {
+                                setEmailLead(lead);
+                                setEmailRecipient({
+                                  name: lead.lead_name,
+                                  email: lead.email,
+                                  company_name: lead.company_name || lead.account_company_name,
+                                  position: lead.position,
+                                });
+                                setEmailModalOpen(true);
+                              }}
+                            />
                           ) : column.field === 'phone_no' ? (
                             lead.phone_no ? (
                               <HighlightedText text={lead.phone_no} highlight={debouncedSearchTerm} />

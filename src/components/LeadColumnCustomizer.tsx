@@ -21,18 +21,22 @@ interface LeadColumnCustomizerProps {
   isSaving?: boolean;
 }
 
+// Fields that must always be visible (cannot be hidden by user)
+export const LOCKED_LEAD_FIELDS = ['email', 'email_status'];
+
 export const defaultLeadColumns: LeadColumnConfig[] = [
   { field: 'lead_name', label: 'Lead Name', visible: true, order: 0 },
   { field: 'account_company_name', label: 'Company Name', visible: true, order: 1 },
   { field: 'position', label: 'Position', visible: true, order: 2 },
   { field: 'email', label: 'Email', visible: true, order: 3 },
-  { field: 'phone_no', label: 'Phone', visible: true, order: 4 },
-  { field: 'lead_status', label: 'Lead Status', visible: true, order: 5 },
-  { field: 'contact_source', label: 'Source', visible: true, order: 6 },
-  { field: 'linkedin', label: 'LinkedIn', visible: false, order: 7 },
-  { field: 'created_time', label: 'Created Date', visible: false, order: 8 },
-  { field: 'last_contacted_at', label: 'Last Contacted', visible: true, order: 9 },
-  { field: 'contact_owner', label: 'Lead Owner', visible: true, order: 10 },
+  { field: 'email_status', label: 'Email Status', visible: true, order: 4 },  // Always next to email
+  { field: 'phone_no', label: 'Phone', visible: true, order: 5 },
+  { field: 'lead_status', label: 'Lead Status', visible: true, order: 6 },
+  { field: 'contact_source', label: 'Source', visible: true, order: 7 },
+  { field: 'linkedin', label: 'LinkedIn', visible: false, order: 8 },
+  { field: 'created_time', label: 'Created Date', visible: false, order: 9 },
+  { field: 'last_contacted_at', label: 'Last Contacted', visible: true, order: 10 },
+  { field: 'contact_owner', label: 'Lead Owner', visible: true, order: 11 },
 ];
 
 export const LeadColumnCustomizer = ({ 
@@ -73,6 +77,9 @@ export const LeadColumnCustomizer = ({
   }, [open, columns, isInitialized]);
 
   const handleVisibilityChange = (field: string, visible: boolean) => {
+    // Prevent hiding locked fields
+    if (LOCKED_LEAD_FIELDS.includes(field) && !visible) return;
+    
     const updatedColumns = localColumns.map(col => 
       col.field === field ? { ...col, visible } : col
     );
@@ -104,27 +111,34 @@ export const LeadColumnCustomizer = ({
           </div>
           
           <div className="space-y-2 max-h-[400px] overflow-y-auto p-1">
-            {localColumns.map((column) => (
-              <div
-                key={column.field}
-                className="flex items-center space-x-3 p-3 border rounded-lg bg-card hover:bg-muted/30"
-              >
-                <Checkbox
-                  id={column.field}
-                  checked={column.visible}
-                  onCheckedChange={(checked) => 
-                    handleVisibilityChange(column.field, Boolean(checked))
-                  }
-                />
-                
-                <Label
-                  htmlFor={column.field}
-                  className="flex-1 cursor-pointer"
+            {localColumns.map((column) => {
+              const isLocked = LOCKED_LEAD_FIELDS.includes(column.field);
+              return (
+                <div
+                  key={column.field}
+                  className={`flex items-center space-x-3 p-3 border rounded-lg bg-card hover:bg-muted/30 ${isLocked ? 'opacity-75' : ''}`}
                 >
-                  {column.label}
-                </Label>
-              </div>
-            ))}
+                  <Checkbox
+                    id={column.field}
+                    checked={column.visible}
+                    disabled={isLocked}
+                    onCheckedChange={(checked) => 
+                      handleVisibilityChange(column.field, Boolean(checked))
+                    }
+                  />
+                  
+                  <Label
+                    htmlFor={column.field}
+                    className={`flex-1 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    {column.label}
+                    {isLocked && (
+                      <span className="text-xs text-muted-foreground ml-2">(always visible)</span>
+                    )}
+                  </Label>
+                </div>
+              );
+            })}
           </div>
           
           <div className="flex justify-between gap-3 pt-4 border-t">

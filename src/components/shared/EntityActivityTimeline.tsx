@@ -8,6 +8,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useProfiles, getDisplayName } from '@/hooks/useProfiles';
 
 interface TimelineItem {
   id: string;
@@ -17,6 +18,7 @@ interface TimelineItem {
   date: string;
   icon: React.ReactNode;
   metadata?: Record<string, string>;
+  performedBy?: string; // User ID who performed the action
 }
 
 interface EntityActivityTimelineProps {
@@ -66,6 +68,9 @@ export const EntityActivityTimeline = ({
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  
+  // Use shared profiles hook for user name resolution
+  const { data: profiles = [] } = useProfiles();
 
   useEffect(() => {
     fetchTimeline();
@@ -80,7 +85,7 @@ export const EntityActivityTimeline = ({
       if (entityType === 'account') {
         const { data: activities } = await supabase
           .from('account_activities')
-          .select('*')
+          .select('*, created_by')
           .eq('account_id', entityId)
           .order('activity_date', { ascending: false });
 
@@ -92,13 +97,14 @@ export const EntityActivityTimeline = ({
             description: activity.description,
             date: activity.activity_date,
             icon: activityIcons[activity.activity_type] || <FileText className="h-4 w-4" />,
-            metadata: { activityType: activity.activity_type, outcome: activity.outcome || '' }
+            metadata: { activityType: activity.activity_type, outcome: activity.outcome || '' },
+            performedBy: activity.created_by
           });
         });
       } else if (entityType === 'contact') {
         const { data: activities } = await supabase
           .from('contact_activities')
-          .select('*')
+          .select('*, created_by')
           .eq('contact_id', entityId)
           .order('activity_date', { ascending: false });
 
@@ -110,7 +116,8 @@ export const EntityActivityTimeline = ({
             description: activity.description,
             date: activity.activity_date,
             icon: activityIcons[activity.activity_type] || <FileText className="h-4 w-4" />,
-            metadata: { activityType: activity.activity_type, outcome: activity.outcome || '' }
+            metadata: { activityType: activity.activity_type, outcome: activity.outcome || '' },
+            performedBy: activity.created_by
           });
         });
       }
@@ -118,7 +125,7 @@ export const EntityActivityTimeline = ({
       // Fetch email history
       const emailQuery = supabase
         .from('email_history')
-        .select('*')
+        .select('*, sent_by')
         .order('sent_at', { ascending: false })
         .limit(50);
 
@@ -146,7 +153,8 @@ export const EntityActivityTimeline = ({
             status: isBounced ? 'bounced' : email.status, 
             opens: isBounced ? '0' : String(email.open_count || 0),
             bounceType: email.bounce_type || '',
-          }
+          },
+          performedBy: email.sent_by
         });
       });
 
@@ -154,7 +162,7 @@ export const EntityActivityTimeline = ({
       if (entityType === 'contact') {
         const { data: meetings } = await supabase
           .from('meetings')
-          .select('*')
+          .select('*, created_by')
           .eq('contact_id', entityId)
           .order('start_time', { ascending: false });
 
@@ -166,13 +174,14 @@ export const EntityActivityTimeline = ({
             description: meeting.outcome ? `Outcome: ${meeting.outcome}` : `Status: ${meeting.status}`,
             date: meeting.start_time,
             icon: <Video className="h-4 w-4" />,
-            metadata: { status: meeting.status, outcome: meeting.outcome || '' }
+            metadata: { status: meeting.status, outcome: meeting.outcome || '' },
+            performedBy: meeting.created_by
           });
         });
       } else if (entityType === 'lead') {
         const { data: meetings } = await supabase
           .from('meetings')
-          .select('*')
+          .select('*, created_by')
           .eq('lead_id', entityId)
           .order('start_time', { ascending: false });
 
@@ -184,7 +193,8 @@ export const EntityActivityTimeline = ({
             description: meeting.outcome ? `Outcome: ${meeting.outcome}` : `Status: ${meeting.status}`,
             date: meeting.start_time,
             icon: <Video className="h-4 w-4" />,
-            metadata: { status: meeting.status, outcome: meeting.outcome || '' }
+            metadata: { status: meeting.status, outcome: meeting.outcome || '' },
+            performedBy: meeting.created_by
           });
         });
       }
@@ -192,7 +202,7 @@ export const EntityActivityTimeline = ({
       // Fetch tasks
       const taskQuery = supabase
         .from('tasks')
-        .select('*')
+        .select('*, created_by, assigned_to')
         .order('created_at', { ascending: false });
 
       if (entityType === 'account') {
@@ -212,7 +222,8 @@ export const EntityActivityTimeline = ({
           description: `Status: ${task.status} • Priority: ${task.priority}`,
           date: task.created_at,
           icon: <Users className="h-4 w-4" />,
-          metadata: { status: task.status, priority: task.priority }
+          metadata: { status: task.status, priority: task.priority },
+          performedBy: task.created_by
         });
       });
 
@@ -260,23 +271,28 @@ export const EntityActivityTimeline = ({
                 {item.icon}
               </div>
               
-              <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.title}</p>
-                    {item.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
-                    {item.type === 'email' && item.metadata && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {item.metadata.opens} opens
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
+                <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.title}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {item.description}
+                        </p>
+                      )}
+                      {item.performedBy && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          By: {getDisplayName(profiles, item.performedBy)}
+                        </p>
+                      )}
+                      {item.type === 'email' && item.metadata && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {item.metadata.opens} opens
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(item.date), 'dd/MM/yyyy HH:mm')}

@@ -5,6 +5,7 @@ import { Phone, Mail, Calendar, FileText, MessageSquare, Users, Clock, Loader2 }
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { ActivityDetailModal } from '@/components/shared/ActivityDetailModal';
+import { useProfiles, getDisplayName } from '@/hooks/useProfiles';
 
 interface Activity {
   id: string;
@@ -52,6 +53,9 @@ export const ContactActivityTimeline = ({ contactId }: ContactActivityTimelinePr
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<TimelineItem | null>(null);
+  
+  // Use shared profiles hook for user name resolution
+  const { data: profiles = [] } = useProfiles();
 
   useEffect(() => {
     fetchActivities();
@@ -146,6 +150,12 @@ export const ContactActivityTimeline = ({ contactId }: ContactActivityTimelinePr
                   {activity.description && (
                     <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                       {activity.description}
+                    </p>
+                  )}
+                  
+                  {activity.created_by && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      By: {getDisplayName(profiles, activity.created_by)}
                     </p>
                   )}
                   

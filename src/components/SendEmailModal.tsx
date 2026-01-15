@@ -240,43 +240,15 @@ export const SendEmailModal = ({ open, onOpenChange, recipient, contactId, leadI
         throw new Error(data.error);
       }
 
-      // Update last_contacted_at for the entity (email history is created by the edge function)
-      const now = new Date().toISOString();
-      
+      // Invalidate queries to pick up the database trigger's automatic last_contacted_at update
       if (contactId) {
-        try {
-          await supabase
-            .from('contacts')
-            .update({ last_contacted_at: now })
-            .eq('id', contactId);
-          queryClient.invalidateQueries({ queryKey: ['contacts'] });
-        } catch (updateError) {
-          console.error('Error updating contact last_contacted_at:', updateError);
-        }
+        queryClient.invalidateQueries({ queryKey: ['contacts'] });
       }
-      
       if (leadId) {
-        try {
-          await supabase
-            .from('leads')
-            .update({ last_contacted_at: now })
-            .eq('id', leadId);
-          queryClient.invalidateQueries({ queryKey: ['leads'] });
-        } catch (updateError) {
-          console.error('Error updating lead last_contacted_at:', updateError);
-        }
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
       }
-      
       if (accountId) {
-        try {
-          await supabase
-            .from('accounts')
-            .update({ last_contacted_at: now })
-            .eq('id', accountId);
-          queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        } catch (updateError) {
-          console.error('Error updating account last_contacted_at:', updateError);
-        }
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
       }
 
       toast({

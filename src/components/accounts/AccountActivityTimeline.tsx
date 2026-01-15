@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ActivityDetailModal } from "@/components/shared/ActivityDetailModal";
+import { useProfiles, getDisplayName } from "@/hooks/useProfiles";
 
 interface TimelineItem {
   id: string;
@@ -28,6 +29,7 @@ interface TimelineItem {
   date: string;
   icon: React.ReactNode;
   metadata?: Record<string, string>;
+  performedBy?: string;
 }
 
 interface AccountActivityTimelineProps {
@@ -61,6 +63,9 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<TimelineItem | null>(null);
+  
+  // Use shared profiles hook for user name resolution
+  const { data: profiles = [] } = useProfiles();
 
   useEffect(() => {
     fetchTimeline();
@@ -73,25 +78,25 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
       const [activitiesRes, contactsRes, dealsRes, leadsRes] = await Promise.all([
         supabase
           .from('account_activities')
-          .select('id, subject, description, activity_type, activity_date, outcome, duration_minutes')
+          .select('id, subject, description, activity_type, activity_date, outcome, duration_minutes, created_by')
           .eq('account_id', accountId)
           .order('activity_date', { ascending: false })
           .limit(50),
         supabase
           .from('contacts')
-          .select('id, contact_name, email, position, created_time')
+          .select('id, contact_name, email, position, created_time, created_by')
           .eq('account_id', accountId)
           .order('created_time', { ascending: false })
           .limit(50),
         supabase
           .from('deals')
-          .select('id, deal_name, stage, total_contract_value, created_at')
+          .select('id, deal_name, stage, total_contract_value, created_at, created_by')
           .eq('account_id', accountId)
           .order('created_at', { ascending: false })
           .limit(50),
         supabase
           .from('leads')
-          .select('id, lead_name, lead_status, company_name, created_time')
+          .select('id, lead_name, lead_status, company_name, created_time, created_by')
           .eq('account_id', accountId)
           .order('created_time', { ascending: false })
           .limit(50)
@@ -108,7 +113,7 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
       if (contactIds.length > 0) {
         const { data: meetingData } = await supabase
           .from('meetings')
-          .select('id, subject, start_time, status, outcome')
+          .select('id, subject, start_time, status, outcome, created_by')
           .in('contact_id', contactIds)
           .order('start_time', { ascending: false })
           .limit(50);
@@ -131,7 +136,8 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
             type: activity.activity_type,
             outcome: activity.outcome || '',
             duration: activity.duration_minutes?.toString() || ''
-          }
+          },
+          performedBy: activity.created_by
         });
       });
 
@@ -144,7 +150,8 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
           description: contact.position || contact.email,
           date: contact.created_time || new Date().toISOString(),
           icon: <User className="h-4 w-4" />,
-          metadata: { email: contact.email || '' }
+          metadata: { email: contact.email || '' },
+          performedBy: contact.created_by
         });
       });
 
@@ -157,7 +164,8 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
           description: `Stage: ${deal.stage}${deal.total_contract_value ? ` • Value: $${deal.total_contract_value.toLocaleString()}` : ''}`,
           date: deal.created_at,
           icon: <Briefcase className="h-4 w-4" />,
-          metadata: { stage: deal.stage }
+          metadata: { stage: deal.stage },
+          performedBy: deal.created_by
         });
       });
 
@@ -170,7 +178,8 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
           description: lead.lead_status ? `Status: ${lead.lead_status}` : undefined,
           date: lead.created_time || new Date().toISOString(),
           icon: <UserPlus className="h-4 w-4" />,
-          metadata: { status: lead.lead_status || '' }
+          metadata: { status: lead.lead_status || '' },
+          performedBy: lead.created_by
         });
       });
 
@@ -183,7 +192,8 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
           description: meeting.outcome ? `Outcome: ${meeting.outcome}` : `Status: ${meeting.status}`,
           date: meeting.start_time,
           icon: <Video className="h-4 w-4" />,
-          metadata: { status: meeting.status, outcome: meeting.outcome || '' }
+          metadata: { status: meeting.status, outcome: meeting.outcome || '' },
+          performedBy: meeting.created_by
         });
       });
 
@@ -262,6 +272,11 @@ export const AccountActivityTimeline = ({ accountId, onAddActivity }: AccountAct
                       {item.description && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                           {item.description}
+                        </p>
+                      )}
+                      {item.performedBy && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          By: {getDisplayName(profiles, item.performedBy)}
                         </p>
                       )}
                     </div>

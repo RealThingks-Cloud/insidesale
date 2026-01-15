@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ActivityDetailModal } from "@/components/shared/ActivityDetailModal";
+import { useProfiles, getDisplayName } from "@/hooks/useProfiles";
 
 interface TimelineItem {
   id: string;
@@ -22,6 +23,7 @@ interface TimelineItem {
   date: string;
   icon: React.ReactNode;
   metadata?: Record<string, string>;
+  performedBy?: string;
 }
 
 interface LeadActivityTimelineProps {
@@ -54,6 +56,9 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<TimelineItem | null>(null);
+  
+  // Use shared profiles hook for user name resolution
+  const { data: profiles = [] } = useProfiles();
 
   useEffect(() => {
     fetchTimeline();
@@ -67,7 +72,7 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
       // Fetch tasks linked to this lead (replacing lead_action_items)
       const { data: tasks } = await supabase
         .from('tasks')
-        .select('*')
+        .select('*, created_by, assigned_to')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
 
@@ -83,14 +88,15 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
           description: task.description || `Status: ${task.status}`,
           date: task.created_at,
           icon: getActivityIcon(activityType),
-          metadata: { type: activityType, status: task.status }
+          metadata: { type: activityType, status: task.status },
+          performedBy: task.created_by
         });
       });
 
       // Fetch meetings linked to this lead
       const { data: meetings } = await supabase
         .from('meetings')
-        .select('*')
+        .select('*, created_by')
         .eq('lead_id', leadId)
         .order('start_time', { ascending: false });
 
@@ -102,14 +108,15 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
           description: meeting.description,
           date: meeting.start_time,
           icon: <Calendar className="h-4 w-4" />,
-          metadata: { status: meeting.status, outcome: meeting.outcome || '' }
+          metadata: { status: meeting.status, outcome: meeting.outcome || '' },
+          performedBy: meeting.created_by
         });
       });
 
       // Fetch emails sent to this lead
       const { data: emails } = await supabase
         .from('email_history')
-        .select('*')
+        .select('*, sent_by')
         .eq('lead_id', leadId)
         .order('sent_at', { ascending: false });
 
@@ -121,7 +128,8 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
           description: `To: ${email.recipient_email}`,
           date: email.sent_at,
           icon: <Mail className="h-4 w-4" />,
-          metadata: { type: 'email', status: email.status }
+          metadata: { type: 'email', status: email.status },
+          performedBy: email.sent_by
         });
       });
 
@@ -183,6 +191,11 @@ export const LeadActivityTimeline = ({ leadId }: LeadActivityTimelineProps) => {
                       {item.description && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                           {item.description}
+                        </p>
+                      )}
+                      {item.performedBy && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          By: {getDisplayName(profiles, item.performedBy)}
                         </p>
                       )}
                     </div>

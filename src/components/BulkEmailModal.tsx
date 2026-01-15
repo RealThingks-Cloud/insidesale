@@ -124,18 +124,13 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
     let successCount = 0;
     let failCount = 0;
 
-    const now = new Date().toISOString();
-    const contactIds: string[] = [];
-    const leadIds: string[] = [];
-    const accountIds: string[] = [];
-
     for (const recipient of validRecipients) {
       try {
         const personalizedSubject = replaceVariables(subject.trim(), recipient);
         const personalizedBody = replaceVariables(body.trim(), recipient);
 
         // Pass entityType and entityId so send-email creates the email_history record
-        // with proper association - no need to create a duplicate record client-side
+        // with proper association - database trigger handles last_contacted_at automatically
         const { data, error } = await supabase.functions.invoke('send-email', {
           body: {
             to: recipient.email,
@@ -149,12 +144,6 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
         });
 
         if (error) throw error;
-
-        // Track successful recipients by type for last_contacted_at update
-        if (recipient.type === 'contact') contactIds.push(recipient.id);
-        else if (recipient.type === 'lead') leadIds.push(recipient.id);
-        else if (recipient.type === 'account') accountIds.push(recipient.id);
-
         successCount++;
       } catch (error) {
         console.error(`Failed to send email to ${recipient.email}:`, error);
@@ -162,17 +151,6 @@ export const BulkEmailModal = ({ open, onOpenChange, recipients, onEmailsSent }:
       }
       
       setSendProgress(prev => ({ ...prev, sent: prev.sent + 1 }));
-    }
-
-    // Update last_contacted_at for all successfully emailed recipients
-    if (contactIds.length > 0) {
-      await supabase.from('contacts').update({ last_contacted_at: now }).in('id', contactIds);
-    }
-    if (leadIds.length > 0) {
-      await supabase.from('leads').update({ last_contacted_at: now }).in('id', leadIds);
-    }
-    if (accountIds.length > 0) {
-      await supabase.from('accounts').update({ last_contacted_at: now }).in('id', accountIds);
     }
 
     setIsSending(false);
