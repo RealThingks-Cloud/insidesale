@@ -602,25 +602,27 @@ export const ListView = ({
                   className="transition-all hover:scale-110"
                 />
               </TableHead>
-              {visibleColumns.map(column => (
-                <TableHead 
-                  key={column.field} 
-                  className="font-bold text-foreground px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors relative whitespace-nowrap bg-muted"
-                  style={{ 
-                    width: `${columnWidths[column.field] || 120}px`,
-                    minWidth: `${columnWidths[column.field] || 120}px`,
-                    maxWidth: `${columnWidths[column.field] || 120}px`
-                  }}
-                  onClick={() => {
-                    if (sortBy === column.field) {
-                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                    } else {
-                      setSortBy(column.field);
-                      setSortOrder("desc");
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-center gap-1 pr-4 text-foreground font-bold">
+              {visibleColumns.map(column => {
+                const isRightAlign = ['total_contract_value', 'total_revenue', 'probability', 'project_duration', 'quarterly_revenue_q1', 'quarterly_revenue_q2', 'quarterly_revenue_q3', 'quarterly_revenue_q4'].includes(column.field);
+                return (
+                  <TableHead 
+                    key={column.field} 
+                    className={`font-bold text-foreground px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors relative whitespace-nowrap bg-muted ${isRightAlign ? 'text-right' : 'text-left'}`}
+                    style={{ 
+                      width: `${columnWidths[column.field] || 120}px`,
+                      minWidth: `${columnWidths[column.field] || 120}px`,
+                      maxWidth: `${columnWidths[column.field] || 120}px`
+                    }}
+                    onClick={() => {
+                      if (sortBy === column.field) {
+                        setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                      } else {
+                        setSortBy(column.field);
+                        setSortOrder("desc");
+                      }
+                    }}
+                  >
+                  <div className="flex items-center justify-start gap-1 pr-4 text-foreground font-bold">
                     {column.label}
                     {sortBy === column.field && (
                       sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
@@ -634,7 +636,8 @@ export const ListView = ({
                     }}
                   />
                 </TableHead>
-              ))}
+              );
+            })}
               <TableHead className="w-32 text-center font-bold text-foreground px-4 py-3 bg-muted">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -668,16 +671,18 @@ export const ListView = ({
                       />
                     </div>
                   </TableCell>
-                  {visibleColumns.map(column => (
-                    <TableCell 
-                      key={column.field} 
-                      className="text-center px-2 py-1 align-middle whitespace-nowrap overflow-hidden"
-                      style={{ 
-                        width: `${columnWidths[column.field] || 120}px`,
-                        minWidth: `${columnWidths[column.field] || 120}px`,
-                        maxWidth: `${columnWidths[column.field] || 120}px`
-                      }}
-                    >
+                  {visibleColumns.map(column => {
+                    const isRightAlign = ['total_contract_value', 'total_revenue', 'probability', 'project_duration', 'quarterly_revenue_q1', 'quarterly_revenue_q2', 'quarterly_revenue_q3', 'quarterly_revenue_q4'].includes(column.field);
+                    return (
+                      <TableCell 
+                        key={column.field} 
+                        className={`px-2 py-1 align-middle whitespace-nowrap overflow-hidden ${isRightAlign ? 'text-right' : 'text-left'}`}
+                        style={{ 
+                          width: `${columnWidths[column.field] || 120}px`,
+                          minWidth: `${columnWidths[column.field] || 120}px`,
+                          maxWidth: `${columnWidths[column.field] || 120}px`
+                        }}
+                      >
                       {column.field === 'project_name' || column.field === 'deal_name' ? (
                         <div className="group flex items-center gap-1">
                           <button 
@@ -711,7 +716,8 @@ export const ListView = ({
                         />
                       )}
                     </TableCell>
-                  ))}
+                  );
+                })}
                   <TableCell className="w-20 px-4 py-3">
                     <div className="flex items-center justify-center">
                       <RowActionsDropdown

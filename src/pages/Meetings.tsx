@@ -678,7 +678,7 @@ const Meetings = () => {
                           <TableCell className="px-4 py-3">
                             {meeting.lead_name && <div>Lead: {meeting.lead_name}</div>}
                             {meeting.contact_name && <div>Contact: {meeting.contact_name}</div>}
-                            {!meeting.lead_name && !meeting.contact_name && <span className="text-center text-muted-foreground w-full block">-</span>}
+                            {!meeting.lead_name && !meeting.contact_name && <span className="text-muted-foreground">-</span>}
                           </TableCell>
                         )}
                         {isColumnVisible('status') && <TableCell className="px-4 py-3">{getStatusBadge(meeting)}</TableCell>}
@@ -700,7 +700,7 @@ const Meetings = () => {
                                  'Join Meeting'}
                               </a>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         )}
@@ -714,7 +714,7 @@ const Meetings = () => {
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         )}
