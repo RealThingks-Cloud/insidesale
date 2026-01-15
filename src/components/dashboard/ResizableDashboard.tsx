@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { X, GripVertical } from "lucide-react";
-import GridLayout from "react-grid-layout";
+import { GridLayout, verticalCompactor, type Layout } from "react-grid-layout";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -13,17 +13,7 @@ import {
   WidgetLayout,
 } from "./DashboardCustomizeModal";
 
-interface LayoutItem {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
-  maxW?: number;
-  maxH?: number;
-}
+type LayoutItem = Layout[number];
 
 interface ResizableDashboardProps {
   isResizeMode: boolean;
@@ -82,7 +72,7 @@ export const ResizableDashboard = ({
   }, [visibleWidgets, widgetLayouts]);
 
   const handleLayoutChange = useCallback(
-    (newLayout: LayoutItem[]) => {
+    (newLayout: Layout) => {
       const next: WidgetLayoutConfig = { ...widgetLayouts };
       newLayout.forEach((l) => {
         const key = l.i as WidgetKey;
@@ -102,19 +92,26 @@ export const ResizableDashboard = ({
     <div className="dashboard-grid w-full">
       <GridLayout
         className="layout w-full"
-        layout={layout as any}
-        cols={COLS}
-        rowHeight={ROW_HEIGHT}
+        layout={layout}
         width={effectiveWidth}
-        margin={MARGIN}
-        containerPadding={[0, 0]}
-        isDraggable={isResizeMode}
-        isResizable={isResizeMode}
-        draggableHandle=".dash-drag-handle"
-        compactType="vertical"
-        preventCollision={false}
-        onLayoutChange={handleLayoutChange as any}
-        useCSSTransforms={true}
+        gridConfig={{
+          cols: COLS,
+          rowHeight: ROW_HEIGHT,
+          margin: MARGIN,
+          containerPadding: [0, 0] as const,
+          maxRows: Infinity,
+        }}
+        dragConfig={{
+          enabled: isResizeMode,
+          handle: ".dash-drag-handle",
+        }}
+        resizeConfig={{
+          enabled: isResizeMode,
+          handles: ["se"],
+        }}
+        compactor={verticalCompactor}
+        onLayoutChange={handleLayoutChange}
+        autoSize
       >
         {visibleWidgets.map((key) => {
           const isPendingRemoval = !!pendingWidgetChanges?.has(key);
@@ -129,7 +126,7 @@ export const ResizableDashboard = ({
           );
         })}
       </GridLayout>
-      <style>{`.dashboard-grid{width:100%;box-sizing:border-box;overflow:visible}.dashboard-grid .layout{width:100%!important}.dashboard-grid .react-grid-layout{min-height:200px;width:100%!important;overflow:visible}.dashboard-grid .react-grid-item{max-width:100%;overflow:visible}.dash-item{height:100%;position:relative;overflow:visible;border-radius:.5rem;background:hsl(var(--card));border:1px solid hsl(var(--border));box-shadow:0 1px 2px hsl(var(--foreground)/.04)}.dash-content{height:100%;width:100%;overflow:auto;border-radius:.5rem}.dash-content>*{width:100%;max-width:100%;height:100%}.dash-content--locked{pointer-events:none;user-select:none}.dash-item--pending-remove{opacity:.55;filter:grayscale(.15)}.dash-item--pending-remove::before{content:"";position:absolute;inset:0;background:hsl(var(--destructive)/.06);pointer-events:none}.dash-pending-badge{position:absolute;bottom:6px;left:6px;z-index:25;pointer-events:none;font-size:11px;line-height:1;padding:3px 6px;border-radius:9999px;border:1px solid hsl(var(--destructive)/.3);background:hsl(var(--background)/.85);color:hsl(var(--destructive));backdrop-filter:blur(8px)}.dash-item--edit{box-shadow:0 0 0 2px hsl(var(--primary)/.35),0 4px 12px hsl(var(--foreground)/.08);border:2px solid hsl(var(--primary)/.45)}.dash-drag-handle{position:absolute;top:6px;left:6px;z-index:20;cursor:grab;border-radius:4px;padding:3px;border:1px solid hsl(var(--border));background:hsl(var(--background)/.95);backdrop-filter:blur(8px);box-shadow:0 1px 4px hsl(var(--foreground)/.06)}.dash-drag-handle:active{cursor:grabbing}.dashboard-grid .react-resizable-handle{background-image:none;opacity:0;transition:opacity .15s ease}.dash-item--edit .react-resizable-handle{opacity:1}.dashboard-grid .react-resizable-handle::after{content:"";position:absolute;width:8px;height:8px;border-right:2px solid hsl(var(--primary));border-bottom:2px solid hsl(var(--primary));right:3px;bottom:3px;border-radius:2px}.dashboard-grid .react-grid-item.react-grid-placeholder{background:hsl(var(--primary)/.15);border:2px dashed hsl(var(--primary)/.4);border-radius:.5rem}.dashboard-grid .react-grid-item>.react-resizable-handle{z-index:15}`}</style>
+      <style>{`.dashboard-grid{width:100%;box-sizing:border-box;overflow:visible}.dashboard-grid .layout{width:100%!important}.dashboard-grid .react-grid-layout{min-height:200px;width:100%!important;overflow:visible}.dashboard-grid .react-grid-item{max-width:100%;overflow:visible}.dash-item{height:100%;position:relative;overflow:visible;border-radius:.5rem;background:hsl(var(--card));border:1px solid hsl(var(--border));box-shadow:0 1px 2px hsl(var(--foreground)/.04)}.dash-content{height:100%;width:100%;overflow:auto;border-radius:.5rem}.dash-content>*{width:100%;max-width:100%;height:100%}.dash-content--locked{pointer-events:none;user-select:none}.dash-item--pending-remove{opacity:.55;filter:grayscale(.15)}.dash-item--pending-remove::before{content:"";position:absolute;inset:0;background:hsl(var(--destructive)/.06);pointer-events:none}.dash-pending-badge{position:absolute;bottom:6px;left:6px;z-index:25;pointer-events:none;font-size:11px;line-height:1;padding:3px 6px;border-radius:9999px;border:1px solid hsl(var(--destructive)/.3);background:hsl(var(--background)/.85);color:hsl(var(--destructive));backdrop-filter:blur(8px)}.dash-item--edit{box-shadow:0 0 0 2px hsl(var(--primary)/.35),0 4px 12px hsl(var(--foreground)/.08);border:2px solid hsl(var(--primary)/.45)}.dash-drag-handle{position:absolute;top:6px;left:6px;z-20;cursor:grab;border-radius:4px;padding:3px;border:1px solid hsl(var(--border));background:hsl(var(--background)/.95);backdrop-filter:blur(8px);box-shadow:0 1px 4px hsl(var(--foreground)/.06)}.dash-drag-handle:active{cursor:grabbing}.dashboard-grid .react-resizable-handle{background-image:none;opacity:0;transition:opacity .15s ease}.dash-item--edit .react-resizable-handle{opacity:1}.dashboard-grid .react-resizable-handle::after{content:"";position:absolute;width:8px;height:8px;border-right:2px solid hsl(var(--primary));border-bottom:2px solid hsl(var(--primary));right:3px;bottom:3px;border-radius:2px}.dashboard-grid .react-grid-item.react-grid-placeholder{background:hsl(var(--primary)/.15);border:2px dashed hsl(var(--primary)/.4);border-radius:.5rem}.dashboard-grid .react-grid-item>.react-resizable-handle{z-index:15}`}</style>
     </div>
   );
 };
