@@ -134,7 +134,7 @@ export const EmailStatusCell = ({
             {displayContent.label}
           </Badge>
           {displayContent.date && (
-            <span className="text-xs text-muted-foreground">• {displayContent.date}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">• {displayContent.date}</span>
           )}
         </div>
         {displayContent.statsText && (
