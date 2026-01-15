@@ -24,6 +24,7 @@ interface OriginalEmailData {
   account_id?: string | null;
   thread_id?: string | null;
   message_id?: string | null;
+  conversation_id?: string | null;
 }
 
 interface ReplyToData {
@@ -206,6 +207,8 @@ export const EmailReplyModal = ({
           threadId: threadId,
           isReply: true,
           parentMessageId: originalEmail.message_id,
+          // Pass conversation_id for Outlook threading - this is the key for proper thread grouping
+          parentConversationId: originalEmail.conversation_id,
         },
       });
 

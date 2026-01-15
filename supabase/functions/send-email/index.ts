@@ -26,6 +26,7 @@ interface EmailRequest {
   threadId?: string; // Thread grouping ID
   isReply?: boolean; // Whether this is a reply
   parentMessageId?: string; // Internet Message-ID of parent for email headers
+  parentConversationId?: string; // Outlook conversation ID for proper threading
 }
 
 async function getAccessToken(): Promise<string> {
@@ -400,7 +401,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { 
       to, subject, body, toName, from, attachments, entityType, entityId,
-      parentEmailId, threadId, isReply, parentMessageId
+      parentEmailId, threadId, isReply, parentMessageId, parentConversationId
     }: EmailRequest = await req.json();
 
     if (!to || !subject || !from) {
@@ -451,8 +452,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     // If parentEmailId is provided, fetch the parent's message_id and conversation_id for threading
     let resolvedParentMessageId = parentMessageId;
-    let parentConversationId: string | null = null;
-    if (parentEmailId && !resolvedParentMessageId) {
+    let resolvedParentConversationId: string | null = parentConversationId || null;
+    if (parentEmailId && (!resolvedParentMessageId || !resolvedParentConversationId)) {
       const { data: parentEmail } = await supabase
         .from("email_history")
         .select("message_id, thread_id, conversation_id")
@@ -460,8 +461,12 @@ const handler = async (req: Request): Promise<Response> => {
         .single();
       
       if (parentEmail) {
-        resolvedParentMessageId = parentEmail.message_id;
-        parentConversationId = parentEmail.conversation_id || null;
+        if (!resolvedParentMessageId) {
+          resolvedParentMessageId = parentEmail.message_id;
+        }
+        if (!resolvedParentConversationId) {
+          resolvedParentConversationId = parentEmail.conversation_id || null;
+        }
         // Use parent's thread_id if available
         if (parentEmail.thread_id && !resolvedThreadId) {
           resolvedThreadId = parentEmail.thread_id;
@@ -540,34 +545,65 @@ const handler = async (req: Request): Promise<Response> => {
     // For now, we'll try to find the original message by its internet message ID
     let graphMessageId: string | null = null;
     
-    if (isReply && resolvedParentMessageId) {
-      // Try to find the original message by internet message ID
-      console.log(`Looking for original message with internet message ID: ${resolvedParentMessageId}`);
+    if (isReply && (resolvedParentMessageId || resolvedParentConversationId)) {
+      // Try to find the original message by internet message ID first
+      console.log(`Looking for original message. MessageID: ${resolvedParentMessageId}, ConversationID: ${resolvedParentConversationId}`);
 
       try {
-        // Search for the message in the user's mailbox using the internetMessageId.
-        // IMPORTANT: don't encode the ID inside the OData filter; encode the query string instead.
-        const safeInternetMessageId = resolvedParentMessageId.replace(/'/g, "''");
-        const qs = new URLSearchParams({
-          "$filter": `internetMessageId eq '${safeInternetMessageId}'`,
-          "$select": "id,internetMessageId",
-        });
-        const searchUrl = `https://graph.microsoft.com/v1.0/users/${from}/messages?${qs.toString()}`;
+        // Strategy 1: Search by internetMessageId (most accurate)
+        if (resolvedParentMessageId) {
+          const safeInternetMessageId = resolvedParentMessageId.replace(/'/g, "''");
+          const qs = new URLSearchParams({
+            "$filter": `internetMessageId eq '${safeInternetMessageId}'`,
+            "$select": "id,internetMessageId,conversationId",
+          });
+          const searchUrl = `https://graph.microsoft.com/v1.0/users/${from}/messages?${qs.toString()}`;
 
-        const searchResponse = await fetch(searchUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
-          if (searchData.value && searchData.value.length > 0) {
-            graphMessageId = searchData.value[0].id;
-            console.log(`Found Graph message ID: ${graphMessageId}`);
+          const searchResponse = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData.value && searchData.value.length > 0) {
+              graphMessageId = searchData.value[0].id;
+              console.log(`Found Graph message ID via internetMessageId: ${graphMessageId}`);
+            }
           } else {
-            console.log("Original message not found in mailbox, will send as new email");
+            console.warn(`Failed to search by internetMessageId: ${searchResponse.status}`);
           }
-        } else {
-          console.warn(`Failed to search for original message: ${searchResponse.status}`);
+        }
+
+        // Strategy 2: If not found, search by conversationId (Outlook's threading key)
+        if (!graphMessageId && resolvedParentConversationId) {
+          console.log(`Trying to find message by conversationId: ${resolvedParentConversationId}`);
+          const convQs = new URLSearchParams({
+            "$filter": `conversationId eq '${resolvedParentConversationId}'`,
+            "$orderby": "receivedDateTime desc",
+            "$top": "1",
+            "$select": "id,internetMessageId,conversationId",
+          });
+          const convSearchUrl = `https://graph.microsoft.com/v1.0/users/${from}/messages?${convQs.toString()}`;
+
+          const convSearchResponse = await fetch(convSearchUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          
+          if (convSearchResponse.ok) {
+            const convSearchData = await convSearchResponse.json();
+            if (convSearchData.value && convSearchData.value.length > 0) {
+              graphMessageId = convSearchData.value[0].id;
+              console.log(`Found Graph message ID via conversationId: ${graphMessageId}`);
+            } else {
+              console.log("No messages found by conversationId");
+            }
+          } else {
+            console.warn(`Failed to search by conversationId: ${convSearchResponse.status}`);
+          }
+        }
+
+        if (!graphMessageId) {
+          console.log("Original message not found in mailbox, will send as new email");
         }
       } catch (searchError) {
         console.warn("Error searching for original message:", searchError);
