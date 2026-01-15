@@ -128,7 +128,7 @@ export const EmailStatusCell = ({
         className="flex flex-col items-start gap-0.5 cursor-pointer hover:opacity-80 transition-opacity text-left"
         onClick={() => setPopoverOpen(true)}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" className={`${displayContent.className} text-xs px-1.5 py-0 h-5 font-medium`}>
             <StatusIcon className={`w-3 h-3 mr-1 ${displayContent.iconColor}`} />
             {displayContent.label}
