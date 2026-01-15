@@ -1,13 +1,7 @@
 import React, { useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { X, GripVertical } from "lucide-react";
-import {
-  GridLayout,
-  type Layout,
-  type LayoutItem,
-  verticalCompactor,
-  cloneLayout,
-} from "react-grid-layout";
+import { GridLayout, verticalCompactor, type Layout } from "react-grid-layout";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -63,7 +57,7 @@ export const ResizableDashboard = ({
     const defaults = new Map<WidgetKey, WidgetLayout>();
     DEFAULT_WIDGETS.forEach((w) => defaults.set(w.key, w.defaultLayout));
 
-    const baseLayout: LayoutItem[] = visibleWidgets.map((key): LayoutItem => {
+    return visibleWidgets.map((key) => {
       const saved = widgetLayouts[key];
       const d = defaults.get(key) ?? { x: 0, y: 0, w: 3, h: 2 };
 
@@ -91,21 +85,6 @@ export const ResizableDashboard = ({
         isBounded: true,
       };
     });
-
-    // Clone layout for compaction
-    const cloned = cloneLayout(baseLayout);
-    
-    // Manually correct bounds - ensure all items fit within COLS
-    cloned.forEach((item) => {
-      if (item.x + item.w > COLS) {
-        item.x = Math.max(0, COLS - item.w);
-      }
-      if (item.x < 0) item.x = 0;
-      if (item.w > COLS) item.w = COLS;
-    });
-    
-    // Compact to avoid gaps/overlaps
-    return verticalCompactor.compact(cloned as Layout, COLS);
   }, [visibleWidgets, widgetLayouts]);
 
   const handleLayoutChange = useCallback(
@@ -145,7 +124,6 @@ export const ResizableDashboard = ({
           enabled: isResizeMode,
           handle: ".dash-drag-handle",
           threshold: 3,
-          bounded: true,
         }}
         resizeConfig={{
           enabled: isResizeMode,
