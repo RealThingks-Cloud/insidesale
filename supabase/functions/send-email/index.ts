@@ -638,9 +638,18 @@ const handler = async (req: Request): Promise<Response> => {
       } catch (replyError: any) {
         // If the Azure app doesn't have Mail.ReadWrite, Graph will deny createReply.
         // Fallback: sendMail with In-Reply-To/References headers to preserve threading.
-        if (replyError.message?.includes("403") || replyError.message?.includes("AccessDenied")) {
+        const isAccessDenied = replyError.message?.includes("403") || replyError.message?.includes("AccessDenied");
+        
+        if (isAccessDenied) {
+          console.error("=".repeat(60));
+          console.error("⚠️ CRITICAL: Graph Reply API returned AccessDenied (403)");
+          console.error("This means your Azure AD App is missing the 'Mail.ReadWrite' permission.");
+          console.error("Without this permission, Outlook threading will NOT work correctly.");
+          console.error("To fix: Add 'Mail.ReadWrite' Application permission in Azure AD and grant admin consent.");
+          console.error("See: https://portal.azure.com > App registrations > API permissions");
+          console.error("=".repeat(60));
           console.warn(
-            "Reply API failed due to permissions. Falling back to sendMail with threading headers (requires parent Message-ID)."
+            "Falling back to sendMail - reply will be sent but may NOT appear in same Outlook thread."
           );
 
           await sendNewEmail(
