@@ -54,10 +54,12 @@ async function fetchInboxReplies(
   sinceDate: string
 ): Promise<ReplyInfo[]> {
   const replies: ReplyInfo[] = [];
+  const senderEmailLower = senderEmail.toLowerCase();
   
   try {
-    // Fetch recent messages from inbox with headers
-    const searchUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/mailFolders/Inbox/messages?$filter=receivedDateTime ge ${sinceDate}&$select=id,subject,from,receivedDateTime,bodyPreview,internetMessageHeaders,conversationId&$top=100&$orderby=receivedDateTime desc`;
+    // Fetch recent messages from inbox with headers AND recipients
+    // Added toRecipients and ccRecipients to verify the message was sent TO this mailbox
+    const searchUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/mailFolders/Inbox/messages?$filter=receivedDateTime ge ${sinceDate}&$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,bodyPreview,internetMessageHeaders,conversationId&$top=100&$orderby=receivedDateTime desc`;
 
     const response = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -72,7 +74,31 @@ async function fetchInboxReplies(
     const messagesData = await response.json();
     const messages = messagesData.value || [];
     
+    console.log(`Processing ${messages.length} inbox messages for ${senderEmail}`);
+    
     for (const msg of messages) {
+      const fromEmail = (msg.from?.emailAddress?.address || '').toLowerCase();
+      
+      // CRITICAL FIX: Skip self-sent messages (sent by the same mailbox owner)
+      // This prevents treating our own sent emails as "received" replies
+      if (fromEmail === senderEmailLower) {
+        console.log(`⏭️ Skipping self-sent message: ${msg.subject?.substring(0, 50)}`);
+        continue;
+      }
+      
+      // Verify the message was addressed TO this mailbox (not just in inbox due to forwarding/rules)
+      const toRecipients = msg.toRecipients || [];
+      const ccRecipients = msg.ccRecipients || [];
+      const allRecipients = [...toRecipients, ...ccRecipients];
+      const isAddressedToSender = allRecipients.some(
+        (r: any) => r.emailAddress?.address?.toLowerCase() === senderEmailLower
+      );
+      
+      if (!isAddressedToSender) {
+        console.log(`⏭️ Skipping message not addressed to ${senderEmail}: ${msg.subject?.substring(0, 50)}`);
+        continue;
+      }
+      
       // Look for In-Reply-To or References header
       const headers = msg.internetMessageHeaders || [];
       const inReplyTo = headers.find((h: any) => h.name.toLowerCase() === 'in-reply-to')?.value;
@@ -81,8 +107,21 @@ async function fetchInboxReplies(
       // Get the conversationId for fallback matching
       const conversationId = msg.conversationId || null;
       
-      // Skip messages without reply headers AND without conversationId (not replies)
-      if (!inReplyTo && !references && !conversationId) continue;
+      // Require reply headers (In-Reply-To or References) to identify as a reply
+      // Only use conversationId as fallback if subject starts with "Re:" or "RE:"
+      const hasReplyHeaders = !!inReplyTo || !!references;
+      const hasReSubject = msg.subject && /^re:/i.test(msg.subject.trim());
+      
+      if (!hasReplyHeaders && !conversationId) {
+        console.log(`⏭️ Skipping non-reply message (no headers, no conversationId): ${msg.subject?.substring(0, 50)}`);
+        continue;
+      }
+      
+      // If no reply headers but has conversationId, only include if subject starts with "Re:"
+      if (!hasReplyHeaders && conversationId && !hasReSubject) {
+        console.log(`⏭️ Skipping message with conversationId but no Re: subject: ${msg.subject?.substring(0, 50)}`);
+        continue;
+      }
       
       // Extract the message ID being replied to
       let replyToMessageId = inReplyTo;
@@ -97,8 +136,8 @@ async function fetchInboxReplies(
         replyToMessageId = replyToMessageId.replace(/^<|>$/g, '');
       }
       
-      // Include messages that have either reply headers OR a conversationId
-      // conversationId allows us to match even when reply headers are missing
+      console.log(`✅ Valid reply candidate from ${fromEmail}: ${msg.subject?.substring(0, 50)}`);
+      
       replies.push({
         from_email: msg.from?.emailAddress?.address || '',
         from_name: msg.from?.emailAddress?.name || null,
@@ -207,13 +246,14 @@ serve(async (req: Request) => {
     }
 
     let totalRepliesFound = 0;
+    let skippedSelfReplies = 0;
     const processedReplies: string[] = [];
 
     for (const [senderEmail, emails] of emailsBySender.entries()) {
       console.log(`Checking replies for ${senderEmail} (${emails.length} sent emails)`);
       
       const replies = await fetchInboxReplies(accessToken, senderEmail, sinceDate);
-      console.log(`Found ${replies.length} potential replies in inbox`);
+      console.log(`Found ${replies.length} valid reply candidates in inbox`);
       
       // Create maps for quick lookup
       const messageIdToEmail = new Map<string, typeof emails[0]>();
@@ -269,6 +309,14 @@ serve(async (req: Request) => {
         }
         
         if (originalEmail) {
+          // CRITICAL SAFETY CHECK: Never insert a reply where from_email equals sender_email
+          // This is a final guard against self-replies
+          if (reply.from_email.toLowerCase() === originalEmail.sender_email.toLowerCase()) {
+            console.log(`🚫 BLOCKED: Self-reply detected - from: ${reply.from_email}, sender: ${originalEmail.sender_email}`);
+            skippedSelfReplies++;
+            continue;
+          }
+          
           // Check if we already have this reply
           const { data: existingReply } = await supabase
             .from('email_replies')
@@ -351,13 +399,14 @@ serve(async (req: Request) => {
     const processingTime = Date.now() - startTime;
 
     console.log("=".repeat(50));
-    console.log(`Reply check complete in ${processingTime}ms. Found ${totalRepliesFound} new reply(s).`);
+    console.log(`Reply check complete in ${processingTime}ms. Found ${totalRepliesFound} new reply(s). Blocked ${skippedSelfReplies} self-replies.`);
     console.log("=".repeat(50));
 
     return new Response(JSON.stringify({
       success: true,
       emailsChecked: sentEmails.length,
       repliesFound: totalRepliesFound,
+      skippedSelfReplies,
       processedReplies,
       processingTimeMs: processingTime,
       message: totalRepliesFound > 0 
