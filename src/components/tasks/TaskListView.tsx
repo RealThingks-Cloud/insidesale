@@ -511,7 +511,7 @@ export const TaskListView = ({
                               </span>
                             </div>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                       )}
@@ -548,7 +548,7 @@ export const TaskListView = ({
                               <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </button>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                       )}
@@ -562,7 +562,7 @@ export const TaskListView = ({
                               </span>
                             </div>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                       )}
@@ -573,7 +573,7 @@ export const TaskListView = ({
                               {task.module_type}
                             </Badge>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                       )}

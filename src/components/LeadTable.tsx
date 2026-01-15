@@ -724,7 +724,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                                 {displayNames[lead.contact_owner] || "Loading..."}
                               </span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'lead_status' ? (
                             lead.lead_status ? (
@@ -732,7 +732,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                                 {lead.lead_status}
                               </Badge>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'email' ? (
                             lead.email ? (
@@ -748,7 +748,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                                 }}
                               />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'email_status' ? (
                             <EmailStatusCell
@@ -772,19 +772,19 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                             lead.phone_no ? (
                               <HighlightedText text={lead.phone_no} highlight={debouncedSearchTerm} />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'position' ? (
                             lead.position ? (
                               <HighlightedText text={lead.position} highlight={debouncedSearchTerm} />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'created_time' || column.field === 'modified_time' || column.field === 'last_contacted_at' ? (
                             lead[column.field as keyof Lead] ? (
                               <span className="text-sm">{formatDateTimeStandard(lead[column.field as keyof Lead] as string)}</span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : (
                             lead[column.field as keyof Lead] ? (
@@ -792,7 +792,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                                 {lead[column.field as keyof Lead]}
                               </span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           )}
                         </TableCell>

@@ -644,10 +644,10 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                 {visibleColumns.map(column => (
                   <TableHead
                     key={column.field}
-                    className={`font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted ${column.field === 'contact_name' ? 'text-left' : 'text-center'}`}
+                    className="font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted text-left"
                   >
                     <div
-                      className={`group flex items-center gap-2 cursor-pointer hover:text-primary ${column.field === 'contact_name' ? 'justify-start' : 'justify-center'}`}
+                      className="group flex items-center gap-2 cursor-pointer hover:text-primary justify-start"
                       onClick={() => handleSort(column.field)}
                     >
                       {column.label}
@@ -699,11 +699,11 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                     {visibleColumns.map(column => (
                       <TableCell
                         key={column.field}
-                        className={`px-4 py-3 align-middle ${
+                        className={`px-4 py-3 align-middle text-left ${
                           column.field === "email_status"
                             ? "whitespace-normal overflow-visible max-w-none"
                             : "whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]"
-                        } ${column.field === "contact_name" ? "text-left" : "text-center"}`}
+                        }`}
                       >
                         {column.field === 'contact_name' ? (
                           <button
@@ -759,7 +759,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                               {displayNames[contact.contact_owner] || "Loading..."}
                             </span>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )
                         ) : column.field === 'tags' && contact.tags && contact.tags.length > 0 ? (
                           <TooltipProvider>
@@ -805,15 +805,15 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                               {contact.engagement_score}
                             </span>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )
                         ) : column.field === 'email_opens' ? (
-                          <span className="text-center w-full block">{contact.email_opens ?? 0}</span>
+                          <span className="w-full block">{contact.email_opens ?? 0}</span>
                         ) : column.field === 'last_contacted_at' ? (
                           contact.last_contacted_at ? (
                             <span className="text-sm">{formatDateTimeStandard(contact.last_contacted_at)}</span>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )
                         ) : (
                           getDisplayValue(contact, column.field) && getDisplayValue(contact, column.field) !== '-' ? (
@@ -821,7 +821,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                               {getDisplayValue(contact, column.field)}
                             </span>
                           ) : (
-                            <span className="text-center text-muted-foreground w-full block">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )
                         )}
                       </TableCell>

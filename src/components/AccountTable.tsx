@@ -520,12 +520,17 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                     <Checkbox checked={selectedAccounts.length > 0 && selectedAccounts.length === Math.min(pageAccounts.length, 50)} onCheckedChange={handleSelectAll} />
                   </div>
                 </TableHead>
-                {visibleColumns.map(column => <TableHead key={column.field} className={`${column.field === 'company_name' || column.field === 'email' ? 'text-left' : 'text-center'} font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted`}>
-                    <div onClick={() => handleSort(column.field)} className={`group gap-2 cursor-pointer hover:text-primary flex items-center ${column.field === 'company_name' || column.field === 'email' ? 'justify-start' : 'justify-center'}`}>
-                      {column.label}
-                      {getSortIcon(column.field)}
-                    </div>
-                  </TableHead>)}
+                {visibleColumns.map(column => {
+                  const isRightAlign = ['deal_count', 'contact_count', 'lead_count'].includes(column.field);
+                  return (
+                    <TableHead key={column.field} className={`${isRightAlign ? 'text-right' : 'text-left'} font-bold text-foreground px-4 py-3 whitespace-nowrap bg-muted`}>
+                      <div onClick={() => handleSort(column.field)} className={`group gap-2 cursor-pointer hover:text-primary flex items-center ${isRightAlign ? 'justify-end' : 'justify-start'}`}>
+                        {column.label}
+                        {getSortIcon(column.field)}
+                      </div>
+                    </TableHead>
+                  );
+                })}
                 <TableHead className="text-center font-bold text-foreground w-32 px-4 py-3 bg-muted">
                   Actions
                 </TableHead>
@@ -552,24 +557,29 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                         <Checkbox checked={selectedAccounts.includes(account.id)} onCheckedChange={checked => handleSelectAccount(account.id, checked as boolean)} />
                       </div>
                     </TableCell>
-                    {visibleColumns.map(column => <TableCell key={column.field} className={`${column.field === 'company_name' || column.field === 'email' ? 'text-left' : 'text-center'} px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]`}>
-                        {column.field === 'company_name' ? <button onClick={() => {
-                    setViewingAccount(account);
-                    setDetailModalDefaultTab("overview");
-                    setShowDetailModal(true);
-                  }} className="text-primary hover:underline font-medium text-left truncate">
+                    {visibleColumns.map(column => {
+                      const isRightAlign = ['deal_count', 'contact_count', 'lead_count'].includes(column.field);
+                      return (
+                        <TableCell key={column.field} className={`${isRightAlign ? 'text-right' : 'text-left'} px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]`}>
+                          {column.field === 'company_name' ? (
+                            <button onClick={() => {
+                              setViewingAccount(account);
+                              setDetailModalDefaultTab("overview");
+                              setShowDetailModal(true);
+                            }} className="text-primary hover:underline font-medium text-left truncate">
                               <HighlightedText text={account.company_name} highlight={searchTerm} />
-                            </button> : column.field === 'account_owner' ? (
+                            </button>
+                          ) : column.field === 'account_owner' ? (
                             account.account_owner ? (
                               <span className="truncate block">{displayNames[account.account_owner] || "Loading..."}</span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'status' ? (
                             account.status ? (
                               <Badge variant="outline" className={`whitespace-nowrap ${getAccountStatusColor(account.status)}`}>{account.status}</Badge>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'deal_count' ? (
                             <button 
@@ -578,7 +588,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                                 setDetailModalDefaultTab("associations");
                                 setShowDetailModal(true);
                               }}
-                              className="text-center w-full block text-primary hover:underline cursor-pointer"
+                              className="text-right w-full block text-primary hover:underline cursor-pointer"
                             >
                               {account.deal_count ?? 0}
                             </button>
@@ -589,7 +599,7 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                                 setDetailModalDefaultTab("associations");
                                 setShowDetailModal(true);
                               }}
-                              className="text-center w-full block text-primary hover:underline cursor-pointer"
+                              className="text-right w-full block text-primary hover:underline cursor-pointer"
                             >
                               {account.contact_count ?? 0}
                             </button>
@@ -600,73 +610,81 @@ const AccountTable = forwardRef<AccountTableRef, AccountTableProps>(({
                                 setDetailModalDefaultTab("associations");
                                 setShowDetailModal(true);
                               }}
-                              className="text-center w-full block text-primary hover:underline cursor-pointer"
+                              className="text-right w-full block text-primary hover:underline cursor-pointer"
                             >
                               {account.lead_count ?? 0}
                             </button>
-                          ) : column.field === 'tags' ? (account.tags && account.tags.length > 0 ? <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1">
-                                  <Badge variant="outline" className="text-xs truncate max-w-[100px] cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => setTagFilter(account.tags![0])}>
-                                    {account.tags[0]}
-                                  </Badge>
-                                  {account.tags.length > 1 && <Badge variant="outline" className="text-xs shrink-0">
-                                      +{account.tags.length - 1}
-                                    </Badge>}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="z-50">
-                                <div className="flex flex-col gap-1">
-                                  <span className="font-medium text-xs">All tags:</span>
-                                  <div className="flex flex-wrap gap-1 max-w-[280px]">
-                                    {account.tags.map((tag, idx) => <Badge key={idx} variant="secondary" className="text-xs cursor-pointer" onClick={() => setTagFilter(tag)}>
-                                        {tag}
-                                      </Badge>)}
-                                  </div>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider> : <span className="text-center text-muted-foreground w-full block">-</span>) : column.field === 'website' ? (
+                          ) : column.field === 'tags' ? (
+                            account.tags && account.tags.length > 0 ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="outline" className="text-xs truncate max-w-[100px] cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => setTagFilter(account.tags![0])}>
+                                        {account.tags[0]}
+                                      </Badge>
+                                      {account.tags.length > 1 && <Badge variant="outline" className="text-xs shrink-0">
+                                          +{account.tags.length - 1}
+                                        </Badge>}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom" className="z-50">
+                                    <div className="flex flex-col gap-1">
+                                      <span className="font-medium text-xs">All tags:</span>
+                                      <div className="flex flex-wrap gap-1 max-w-[280px]">
+                                        {account.tags.map((tag, idx) => <Badge key={idx} variant="secondary" className="text-xs cursor-pointer" onClick={() => setTagFilter(tag)}>
+                                            {tag}
+                                          </Badge>)}
+                                      </div>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )
+                          ) : column.field === 'website' ? (
                             account.website ? (
                               <a href={account.website.startsWith('http') ? account.website : `https://${account.website}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
                                 <span className="truncate max-w-[150px]">{account.website.replace(/^https?:\/\//, '')}</span>
                               </a>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'industry' ? (
                             account.industry ? (
                               <HighlightedText text={account.industry} highlight={searchTerm} />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'country' ? (
                             account.country ? (
                               <HighlightedText text={account.country} highlight={searchTerm} />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'email' ? (
                             account.email ? (
                               <HighlightedText text={account.email} highlight={searchTerm} />
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : column.field === 'created_at' || column.field === 'updated_at' ? (
                             account[column.field as keyof Account] ? (
                               <span className="text-sm">{formatDateTimeStandard(account[column.field as keyof Account] as string)}</span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           ) : (
                             account[column.field as keyof Account] ? (
                               <span title={account[column.field as keyof Account]?.toString()} className="truncate block">{account[column.field as keyof Account]?.toString()}</span>
                             ) : (
-                              <span className="text-center text-muted-foreground w-full block">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )
                           )}
-                      </TableCell>)}
+                        </TableCell>
+                      );
+                    })}
                     <TableCell className="w-20 px-4 py-3">
                       <div className="flex items-center justify-center">
                         <RowActionsDropdown actions={[
