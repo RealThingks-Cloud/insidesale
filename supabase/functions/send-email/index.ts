@@ -204,11 +204,6 @@ async function sendNewEmail(
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
   const bodyWithTracking = bodyWithClickTracking + trackingPixel;
 
-  // Note: Microsoft Graph's sendMail endpoint does NOT support standard RFC headers
-  // like "In-Reply-To" or "References" - it requires custom headers to start with "x-" or "X-".
-  // Threading via sendMail fallback won't have proper email threading, but the email will send.
-  // For proper threading, the Graph Reply API (createReply) should be used instead.
-
   const emailPayload: any = {
     message: {
       subject: emailRequest.subject,
@@ -256,7 +251,8 @@ async function sendNewEmail(
   console.log("Email sent successfully (sendMail) with tracking embedded");
 }
 
-// Send a reply email using Microsoft Graph's reply endpoint for proper threading
+// Send a reply email using Microsoft Graph's direct /reply action for proper threading
+// This uses POST /messages/{id}/reply which only requires Mail.Send permission
 async function sendReplyEmail(
   accessToken: string,
   emailRequest: EmailRequest,
@@ -265,7 +261,7 @@ async function sendReplyEmail(
 ): Promise<void> {
   const senderEmail = emailRequest.from;
   
-  console.log(`Sending reply using Graph Reply API. Original message ID: ${originalGraphMessageId}`);
+  console.log(`Sending reply using Graph /reply action. Original message ID: ${originalGraphMessageId}`);
   
   // Generate tracking URLs
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -281,6 +277,71 @@ async function sendReplyEmail(
   const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
   const bodyWithTracking = bodyWithClickTracking + trackingPixel;
 
+  // Check if we have attachments - if so, we'll need a different approach
+  const hasAttachments = emailRequest.attachments && emailRequest.attachments.length > 0;
+  
+  if (hasAttachments) {
+    // For attachments, we need to use createReply (draft) approach
+    // This requires Mail.ReadWrite permission
+    console.log(`Reply has ${emailRequest.attachments!.length} attachment(s), using createReply approach`);
+    await sendReplyWithAttachments(accessToken, emailRequest, emailHistoryId, originalGraphMessageId, bodyWithTracking);
+    return;
+  }
+
+  // Use the direct /reply endpoint (sends immediately, only requires Mail.Send)
+  // POST /users/{user}/messages/{messageId}/reply
+  const replyUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/messages/${originalGraphMessageId}/reply`;
+  
+  console.log(`Calling direct /reply endpoint: POST ${replyUrl}`);
+  
+  // The /reply endpoint accepts a "message" object to customize the reply
+  // and a "comment" for simple text. We use "message" for full control.
+  const replyPayload = {
+    message: {
+      body: {
+        contentType: "HTML",
+        content: bodyWithTracking,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: emailRequest.to,
+            name: emailRequest.toName || emailRequest.to,
+          },
+        },
+      ],
+    },
+  };
+
+  const response = await fetch(replyUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(replyPayload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Failed to send reply via /reply endpoint:", errorText);
+    throw new Error(`Failed to send reply: ${response.status} ${errorText}`);
+  }
+
+  console.log("Reply sent successfully via /reply endpoint with proper Outlook threading!");
+}
+
+// Send reply with attachments using createReply (draft) approach
+// This requires Mail.ReadWrite permission
+async function sendReplyWithAttachments(
+  accessToken: string,
+  emailRequest: EmailRequest,
+  emailHistoryId: string,
+  originalGraphMessageId: string,
+  bodyWithTracking: string
+): Promise<void> {
+  const senderEmail = emailRequest.from;
+  
   // Build attachments array for Microsoft Graph API
   const attachments = emailRequest.attachments?.map(att => ({
     "@odata.type": "#microsoft.graph.fileAttachment",
@@ -290,7 +351,6 @@ async function sendReplyEmail(
   })) || [];
 
   // Step 1: Create a reply draft using the createReply endpoint
-  // This automatically sets up proper threading (In-Reply-To, References headers)
   const createReplyUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/messages/${originalGraphMessageId}/createReply`;
   
   console.log(`Creating reply draft via: ${createReplyUrl}`);
@@ -351,25 +411,23 @@ async function sendReplyEmail(
 
   console.log("Updated reply draft with body content");
 
-  // Step 3: Add attachments if present
-  if (attachments.length > 0) {
-    console.log(`Adding ${attachments.length} attachment(s) to reply...`);
-    for (const attachment of attachments) {
-      const attachmentUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/messages/${draftId}/attachments`;
-      
-      const attachResponse = await fetch(attachmentUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(attachment),
-      });
+  // Step 3: Add attachments
+  console.log(`Adding ${attachments.length} attachment(s) to reply...`);
+  for (const attachment of attachments) {
+    const attachmentUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/messages/${draftId}/attachments`;
+    
+    const attachResponse = await fetch(attachmentUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(attachment),
+    });
 
-      if (!attachResponse.ok) {
-        const errorText = await attachResponse.text();
-        console.warn(`Failed to add attachment ${attachment.name}:`, errorText);
-      }
+    if (!attachResponse.ok) {
+      const errorText = await attachResponse.text();
+      console.warn(`Failed to add attachment ${attachment.name}:`, errorText);
     }
   }
 
@@ -385,11 +443,11 @@ async function sendReplyEmail(
 
   if (!sendResponse.ok) {
     const errorText = await sendResponse.text();
-    console.error("Failed to send reply:", errorText);
+    console.error("Failed to send reply draft:", errorText);
     throw new Error(`Failed to send reply: ${sendResponse.status} ${errorText}`);
   }
 
-  console.log("Reply sent successfully with proper threading!");
+  console.log("Reply with attachments sent successfully via createReply/send!");
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -542,7 +600,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Determine if we can use the reply endpoint
     // We need the Graph message ID (not internet message ID) to use reply endpoint
-    // For now, we'll try to find the original message by its internet message ID
     let graphMessageId: string | null = null;
     
     if (isReply && (resolvedParentMessageId || resolvedParentConversationId)) {
@@ -618,7 +675,7 @@ const handler = async (req: Request): Promise<Response> => {
       : subject;
 
     if (isReply && graphMessageId) {
-      console.log("Using Graph Reply API for proper threading");
+      console.log("Using Graph /reply action for proper threading");
       try {
         await sendReplyEmail(
           accessToken,
@@ -636,17 +693,16 @@ const handler = async (req: Request): Promise<Response> => {
           graphMessageId
         );
       } catch (replyError: any) {
-        // If the Azure app doesn't have Mail.ReadWrite, Graph will deny createReply.
-        // Fallback: sendMail with In-Reply-To/References headers to preserve threading.
-        const isAccessDenied = replyError.message?.includes("403") || replyError.message?.includes("AccessDenied");
+        // Check if this is a permission error
+        const errorMsg = replyError.message || '';
+        const isAccessDenied = errorMsg.includes("403") || errorMsg.includes("AccessDenied") || errorMsg.includes("Forbidden");
         
         if (isAccessDenied) {
           console.error("=".repeat(60));
-          console.error("⚠️ CRITICAL: Graph Reply API returned AccessDenied (403)");
-          console.error("This means your Azure AD App is missing the 'Mail.ReadWrite' permission.");
-          console.error("Without this permission, Outlook threading will NOT work correctly.");
-          console.error("To fix: Add 'Mail.ReadWrite' Application permission in Azure AD and grant admin consent.");
-          console.error("See: https://portal.azure.com > App registrations > API permissions");
+          console.error("⚠️ Graph Reply API returned AccessDenied (403)");
+          console.error("This typically means missing Mail.Send or Mail.ReadWrite permission.");
+          console.error("For replies WITHOUT attachments: only Mail.Send is needed.");
+          console.error("For replies WITH attachments: Mail.ReadWrite is also needed.");
           console.error("=".repeat(60));
           console.warn(
             "Falling back to sendMail - reply will be sent but may NOT appear in same Outlook thread."
@@ -673,7 +729,7 @@ const handler = async (req: Request): Promise<Response> => {
     } else {
       if (isReply) {
         console.log(
-          "Could not use Graph Reply API (missing Graph message id). Sending via sendMail with threading headers."
+          "Could not use Graph Reply API (missing Graph message id). Sending via sendMail."
         );
       }
       await sendNewEmail(
