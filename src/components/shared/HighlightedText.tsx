@@ -7,8 +7,19 @@ interface HighlightedTextProps {
 }
 
 export const HighlightedText = ({ text, highlight, className }: HighlightedTextProps) => {
-  if (!text) return <span className={cn("block text-center w-full", className)}>-</span>;
-  if (!highlight.trim()) return <span className={className}>{text}</span>;
+  // Empty/null values - render muted placeholder without forced centering
+  if (!text || text === "-") {
+    return <span className={cn("text-muted-foreground", className)}>-</span>;
+  }
+  
+  // No highlight - just render text with truncation
+  if (!highlight.trim()) {
+    return (
+      <span className={cn("truncate block", className)} title={text}>
+        {text}
+      </span>
+    );
+  }
 
   const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   const parts = text.split(regex);
