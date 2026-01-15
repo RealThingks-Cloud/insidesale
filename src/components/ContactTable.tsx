@@ -699,7 +699,11 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                     {visibleColumns.map(column => (
                       <TableCell
                         key={column.field}
-                        className={`px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] ${column.field === 'contact_name' ? 'text-left' : 'text-center'}`}
+                        className={`px-4 py-3 align-middle ${
+                          column.field === "email_status"
+                            ? "whitespace-normal overflow-visible max-w-none"
+                            : "whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]"
+                        } ${column.field === "contact_name" ? "text-left" : "text-center"}`}
                       >
                         {column.field === 'contact_name' ? (
                           <button

@@ -692,7 +692,11 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                       {visibleColumns.map(column => (
                         <TableCell 
                           key={column.field} 
-                          className="text-left px-4 py-3 align-middle whitespace-nowrap overflow-hidden text-ellipsis"
+                          className={`text-left px-4 py-3 align-middle ${
+                            column.field === "email_status"
+                              ? "whitespace-normal overflow-visible"
+                              : "whitespace-nowrap overflow-hidden text-ellipsis"
+                          }`}
                         >
                           {column.field === 'lead_name' ? (
                             <button 
