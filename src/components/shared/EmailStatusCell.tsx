@@ -70,7 +70,9 @@ export const EmailStatusCell = ({
 
     const config = stats.latestStatus ? statusConfig[stats.latestStatus] : statusConfig.sent;
     const StatusIcon = config.icon;
-    const formattedDate = stats.lastSentAt ? format(new Date(stats.lastSentAt), 'MMM d') : null;
+    const lastSentDate = stats.lastSentAt ? new Date(stats.lastSentAt) : null;
+    const isCurrentYear = lastSentDate && lastSentDate.getFullYear() === new Date().getFullYear();
+    const formattedDate = lastSentDate ? format(lastSentDate, isCurrentYear ? 'MMM d' : 'MMM d, yyyy') : null;
     
     let statsText = `${stats.totalEmails} sent`;
     if (stats.replyCount > 0) {
