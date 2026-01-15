@@ -125,19 +125,19 @@ export const EmailStatusCell = ({
       onSendEmail={onSendEmail}
     >
       <button 
-        className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity text-left"
+        className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity text-left w-full min-w-0"
         onClick={() => setPopoverOpen(true)}
       >
         <Badge variant="outline" className={`${displayContent.className} text-xs px-1.5 py-0 h-5 font-medium shrink-0`}>
           <StatusIcon className={`w-3 h-3 mr-1 ${displayContent.iconColor}`} />
           {displayContent.label}
         </Badge>
-        <div className="flex flex-col text-xs text-muted-foreground">
+        <div className="flex flex-col text-xs text-muted-foreground min-w-0">
           {displayContent.date && (
-            <span className="whitespace-nowrap">• {displayContent.date}</span>
+            <span className="truncate" title={`Last: ${displayContent.date}`}>• {displayContent.date}</span>
           )}
           {displayContent.statsText && (
-            <span className="whitespace-nowrap">{displayContent.statsText}</span>
+            <span className="truncate" title={displayContent.statsText}>{displayContent.statsText}</span>
           )}
         </div>
       </button>

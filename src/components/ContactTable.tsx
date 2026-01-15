@@ -701,7 +701,7 @@ export const ContactTable = forwardRef<ContactTableRef, ContactTableProps>(({
                         key={column.field}
                         className={`px-4 py-3 align-middle text-left ${
                           column.field === "email_status"
-                            ? "whitespace-normal overflow-visible max-w-none"
+                            ? "whitespace-normal overflow-hidden min-w-[160px] max-w-[200px]"
                             : "whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]"
                         }`}
                       >

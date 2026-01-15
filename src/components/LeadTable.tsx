@@ -619,6 +619,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                         case 'account_company_name': return 'w-[140px]';
                         case 'position': return 'w-[130px]';
                         case 'email': return 'w-[180px]';
+                        case 'email_status': return 'w-[180px]';
                         case 'phone_no': return 'w-[120px]';
                         case 'lead_status': return 'w-[100px]';
                         case 'contact_source': return 'w-[100px]';
@@ -694,7 +695,7 @@ const LeadTable = forwardRef<LeadTableRef, LeadTableProps>(({
                           key={column.field} 
                           className={`text-left px-4 py-3 align-middle ${
                             column.field === "email_status"
-                              ? "whitespace-normal overflow-visible"
+                              ? "whitespace-normal overflow-hidden"
                               : "whitespace-nowrap overflow-hidden text-ellipsis"
                           }`}
                         >
