@@ -1,13 +1,15 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Users, Euro } from "lucide-react";
+import { BarChart3, Users, Coins } from "lucide-react";
 import { Deal } from "@/types/deal";
+import { useUserPreferences } from "@/contexts/UserPreferencesContext";
 
 interface DashboardStatsProps {
   deals: Deal[];
 }
 
 export const DashboardStats = ({ deals }: DashboardStatsProps) => {
+  const { formatCurrency } = useUserPreferences();
+  
   const totalDeals = deals.length;
   const totalValue = deals.reduce((sum, deal) => sum + (deal.total_contract_value || 0), 0);
   const wonDeals = deals.filter(deal => deal.stage === 'Won').length;
@@ -28,11 +30,11 @@ export const DashboardStats = ({ deals }: DashboardStatsProps) => {
         <Card className="animate-fade-in hover-scale">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <Euro className="w-4 h-4 text-muted-foreground" />
+            <Coins className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              €{totalValue.toLocaleString()}
+              {formatCurrency(totalValue)}
             </div>
           </CardContent>
         </Card>
