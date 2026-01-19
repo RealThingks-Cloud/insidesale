@@ -171,6 +171,11 @@ export const EmailReplyModal = ({
       return;
     }
 
+    // Warn if original email lacks message_id (threading may not work perfectly)
+    if (!originalEmail.message_id) {
+      console.warn('Original email lacks message_id - reply may not thread properly in Outlook. Will use fallback threading headers.');
+    }
+
     setIsSending(true);
 
     try {
