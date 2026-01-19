@@ -322,18 +322,32 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
     
-    // Find the most recent SENT email (that's what we need for the reply endpoint)
+    // PRIORITY: Find the most recent SENT email WITH a valid message_id
+    // This is critical for proper Outlook threading
+    const mostRecentSentWithMessageId = sortedMessages.find(
+      m => m.type === 'sent' && m.originalEmail?.message_id
+    );
+    
+    // Fallback: Find any recent sent email (even without message_id)
     const mostRecentSent = sortedMessages.find(m => m.type === 'sent' && m.originalEmail);
     
-    if (mostRecentSent?.originalEmail) {
+    // Use the one with message_id if available, otherwise fallback
+    const emailForReply = mostRecentSentWithMessageId || mostRecentSent;
+    
+    if (emailForReply?.originalEmail) {
+      // Log if we're using an email without message_id
+      if (!emailForReply.originalEmail.message_id) {
+        console.warn('Replying to email without message_id - Outlook threading may not work perfectly');
+      }
+      
       // Use the most recent sent email for threading context
-      setSelectedEmailForReply(mostRecentSent.originalEmail);
+      setSelectedEmailForReply(emailForReply.originalEmail);
       
       // If there's a received reply that's more recent than this sent email,
       // include its context so the user knows what they're replying to
       const mostRecentReceived = sortedMessages.find(m => m.type === 'received');
       if (mostRecentReceived && 
-          new Date(mostRecentReceived.timestamp) > new Date(mostRecentSent.timestamp) &&
+          new Date(mostRecentReceived.timestamp) > new Date(emailForReply.timestamp) &&
           mostRecentReceived.originalReply) {
         setReplyToData({
           from_email: mostRecentReceived.from_email,

@@ -173,11 +173,12 @@ function rewriteLinksForTracking(html: string, emailHistoryId: string, supabaseU
   });
 }
 
-// Send a new email (not a reply)
+// Send a new email (not a reply) - or as fallback for replies when Graph /reply is unavailable
 async function sendNewEmail(
   accessToken: string,
   emailRequest: EmailRequest,
-  emailHistoryId: string
+  emailHistoryId: string,
+  threadingHeaders?: { inReplyTo?: string; references?: string }
 ): Promise<void> {
   const graphUrl = `https://graph.microsoft.com/v1.0/users/${emailRequest.from}/sendMail`;
 
@@ -223,6 +224,32 @@ async function sendNewEmail(
     saveToSentItems: true,
   };
 
+  // Add RFC 5322 threading headers (In-Reply-To, References) for proper email threading
+  // This is critical for email clients to group replies in the same thread
+  if (threadingHeaders && (threadingHeaders.inReplyTo || threadingHeaders.references)) {
+    const internetMessageHeaders: Array<{ name: string; value: string }> = [];
+    
+    if (threadingHeaders.inReplyTo) {
+      internetMessageHeaders.push({
+        name: "In-Reply-To",
+        value: threadingHeaders.inReplyTo,
+      });
+      console.log(`Adding In-Reply-To header: ${threadingHeaders.inReplyTo}`);
+    }
+    
+    if (threadingHeaders.references) {
+      internetMessageHeaders.push({
+        name: "References",
+        value: threadingHeaders.references,
+      });
+      console.log(`Adding References header: ${threadingHeaders.references}`);
+    }
+    
+    if (internetMessageHeaders.length > 0) {
+      emailPayload.message.internetMessageHeaders = internetMessageHeaders;
+    }
+  }
+
   // Add attachments if present
   if (attachments.length > 0) {
     emailPayload.message.attachments = attachments;
@@ -230,7 +257,7 @@ async function sendNewEmail(
   }
 
   console.log(
-    `Sending ${emailRequest.isReply ? "reply" : "new"} email to ${emailRequest.to} with open tracking...`
+    `Sending ${emailRequest.isReply ? "reply (fallback)" : "new"} email to ${emailRequest.to} with open tracking...`
   );
 
   const response = await fetch(graphUrl, {
@@ -248,7 +275,7 @@ async function sendNewEmail(
     throw new Error(`Failed to send email: ${response.status} ${errorText}`);
   }
 
-  console.log("Email sent successfully (sendMail) with tracking embedded");
+  console.log("Email sent successfully (sendMail) with tracking embedded" + (threadingHeaders ? " and threading headers" : ""));
 }
 
 // Send a reply email using Microsoft Graph's direct /reply action for proper threading
@@ -450,6 +477,74 @@ async function sendReplyWithAttachments(
   console.log("Reply with attachments sent successfully via createReply/send!");
 }
 
+// Search for original message by subject, recipient, and date range
+// Used as fallback when message_id is not available
+async function searchOriginalMessageByContext(
+  accessToken: string,
+  senderEmail: string,
+  recipientEmail: string,
+  subject: string,
+  sentAfter: Date
+): Promise<string | null> {
+  console.log(`Searching for original message by context: subject="${subject}", to="${recipientEmail}", after=${sentAfter.toISOString()}`);
+  
+  try {
+    // Build search query - search by subject and within time range
+    const baseSubject = subject.replace(/^(Re:\s*)+/i, '').trim();
+    const searchDate = sentAfter.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Use $search for subject matching and $filter for date
+    const searchParams = new URLSearchParams({
+      "$search": `"subject:${baseSubject}"`,
+      "$filter": `sentDateTime ge ${searchDate}T00:00:00Z`,
+      "$orderby": "sentDateTime desc",
+      "$top": "10",
+      "$select": "id,internetMessageId,conversationId,subject,toRecipients,sentDateTime",
+    });
+    
+    // Search in Sent Items folder first
+    const sentItemsUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/mailFolders/SentItems/messages?${searchParams.toString()}`;
+    
+    const response = await fetch(sentItemsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const messages = data.value || [];
+      
+      // Find the best match - check if recipient matches
+      for (const msg of messages) {
+        const msgRecipients = msg.toRecipients || [];
+        const recipientMatch = msgRecipients.some((r: any) => 
+          r.emailAddress?.address?.toLowerCase() === recipientEmail.toLowerCase()
+        );
+        
+        if (recipientMatch) {
+          console.log(`Found matching message by context search: ${msg.id}`);
+          return msg.id;
+        }
+      }
+      
+      // If no recipient match, return the first result if subject is close enough
+      if (messages.length > 0) {
+        const firstMsg = messages[0];
+        const msgSubject = (firstMsg.subject || '').replace(/^(Re:\s*)+/i, '').trim().toLowerCase();
+        if (msgSubject.includes(baseSubject.toLowerCase().substring(0, 20))) {
+          console.log(`Found message by partial subject match: ${firstMsg.id}`);
+          return firstMsg.id;
+        }
+      }
+    } else {
+      console.warn(`Context search failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.warn("Error in context search:", error);
+  }
+  
+  return null;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -511,10 +606,12 @@ const handler = async (req: Request): Promise<Response> => {
     // If parentEmailId is provided, fetch the parent's message_id and conversation_id for threading
     let resolvedParentMessageId = parentMessageId;
     let resolvedParentConversationId: string | null = parentConversationId || null;
+    let parentSentAt: Date | null = null;
+    
     if (parentEmailId && (!resolvedParentMessageId || !resolvedParentConversationId)) {
       const { data: parentEmail } = await supabase
         .from("email_history")
-        .select("message_id, thread_id, conversation_id")
+        .select("message_id, thread_id, conversation_id, sent_at, recipient_email")
         .eq("id", parentEmailId)
         .single();
       
@@ -528,6 +625,18 @@ const handler = async (req: Request): Promise<Response> => {
         // Use parent's thread_id if available
         if (parentEmail.thread_id && !resolvedThreadId) {
           resolvedThreadId = parentEmail.thread_id;
+        }
+        // Store parent's sent_at for context search fallback
+        if (parentEmail.sent_at) {
+          parentSentAt = new Date(parentEmail.sent_at);
+        }
+        
+        // Log warning if parent is missing critical threading data
+        if (!parentEmail.message_id) {
+          console.warn(`⚠️ Parent email ${parentEmailId} is missing message_id - threading may not work properly`);
+        }
+        if (!parentEmail.conversation_id) {
+          console.warn(`⚠️ Parent email ${parentEmailId} is missing conversation_id`);
         }
       }
     }
@@ -676,8 +785,20 @@ const handler = async (req: Request): Promise<Response> => {
           }
         }
 
+        // Strategy 3: Search by subject, recipient, and date (fallback when no message_id)
+        if (!graphMessageId && parentSentAt) {
+          console.log("Trying context-based search (subject + recipient + date)...");
+          graphMessageId = await searchOriginalMessageByContext(
+            accessToken,
+            from,
+            cleanedTo,
+            subject,
+            parentSentAt
+          );
+        }
+
         if (!graphMessageId) {
-          console.log("Original message not found in any mailbox folder, will send as new email");
+          console.log("Original message not found in any mailbox folder, will send as new email with threading headers");
         }
       } catch (searchError) {
         console.warn("Error searching for original message:", searchError);
@@ -690,6 +811,12 @@ const handler = async (req: Request): Promise<Response> => {
         ? subject
         : `Re: ${subject}`
       : subject;
+
+    // Build threading headers for fallback sendNewEmail
+    const threadingHeaders = isReply && resolvedParentMessageId ? {
+      inReplyTo: resolvedParentMessageId,
+      references: resolvedParentMessageId,
+    } : undefined;
 
     if (isReply && graphMessageId) {
       console.log("Using Graph /reply action for proper threading");
@@ -722,7 +849,7 @@ const handler = async (req: Request): Promise<Response> => {
           console.error("For replies WITH attachments: Mail.ReadWrite is also needed.");
           console.error("=".repeat(60));
           console.warn(
-            "Falling back to sendMail - reply will be sent but may NOT appear in same Outlook thread."
+            "Falling back to sendMail with threading headers - reply should appear in same Outlook thread."
           );
 
           await sendNewEmail(
@@ -737,7 +864,8 @@ const handler = async (req: Request): Promise<Response> => {
               isReply,
               parentMessageId: resolvedParentMessageId,
             },
-            emailRecord.id
+            emailRecord.id,
+            threadingHeaders
           );
         } else {
           throw replyError;
@@ -746,7 +874,7 @@ const handler = async (req: Request): Promise<Response> => {
     } else {
       if (isReply) {
         console.log(
-          "Could not use Graph Reply API (missing Graph message id). Sending via sendMail."
+          "Could not use Graph Reply API (missing Graph message id). Sending via sendMail with threading headers."
         );
       }
       await sendNewEmail(
@@ -761,18 +889,22 @@ const handler = async (req: Request): Promise<Response> => {
           isReply,
           parentMessageId: resolvedParentMessageId,
         },
-        emailRecord.id
+        emailRecord.id,
+        threadingHeaders
       );
     }
 
     // Fetch the sent message to get its Message-ID and conversationId for threading
+    // Increased retries and delay for more reliable capture
     let messageId: string | null = null;
     let conversationId: string | null = null;
     let retries = 0;
-    const maxRetries = 4;
+    const maxRetries = 6; // Increased from 4 to 6
 
     while (!messageId && retries < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 2000 + (retries * 1000)));
+      // Exponential backoff: 2s, 3s, 4.5s, 6.75s, 10s, 15s
+      const delay = Math.min(2000 * Math.pow(1.5, retries), 15000);
+      await new Promise(resolve => setTimeout(resolve, delay));
       retries++;
       
       try {
@@ -787,10 +919,11 @@ const handler = async (req: Request): Promise<Response> => {
           const sentData = await sentResponse.json();
           const messages = sentData.value || [];
           
+          // Increase time window for matching (2 minutes)
           const recentMessages = messages.filter((msg: any) => {
             const msgTime = new Date(msg.sentDateTime);
             const timeDiff = Date.now() - msgTime.getTime();
-            return timeDiff < 90000;
+            return timeDiff < 120000; // 2 minutes
           });
 
           console.log(`Attempt ${retries}: Found ${recentMessages.length} recent messages in sent folder`);
@@ -849,9 +982,9 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!messageId) {
-      console.warn(`Could not capture Message-ID for email to ${cleanedTo} after ${maxRetries} attempts`);
+      console.warn(`⚠️ Could not capture Message-ID for email to ${cleanedTo} after ${maxRetries} attempts. Future replies to this email may not thread properly.`);
     } else {
-      console.log(`Successfully captured Message-ID: ${messageId}${conversationId ? `, conversationId: ${conversationId}` : ''}`);
+      console.log(`✅ Successfully captured Message-ID: ${messageId}${conversationId ? `, conversationId: ${conversationId}` : ''}`);
     }
 
     // Update email history with Message-ID and conversationId
