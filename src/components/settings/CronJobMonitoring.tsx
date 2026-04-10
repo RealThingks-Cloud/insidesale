@@ -47,7 +47,7 @@ const CronJobMonitoring = ({ embedded = false }: CronJobMonitoringProps) => {
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const keepAliveEndpoint = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/keep-alive`;
 

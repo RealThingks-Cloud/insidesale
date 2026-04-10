@@ -117,7 +117,7 @@ export class LeadsCSVProcessor {
             leadId = existingLead.id;
             const { error: updateError } = await supabase
               .from('leads')
-              .update(leadRecord)
+              .update(leadRecord as any)
               .eq('id', leadId);
 
             if (updateError) {

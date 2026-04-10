@@ -68,7 +68,7 @@ interface ProfileSectionProps {
 
 const ProfileSection = ({ profile, setProfile, userId, displayPrefs, setDisplayPrefs, theme, setTheme }: ProfileSectionProps) => {
   const [removingAvatar, setRemovingAvatar] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>(JSON.stringify(displayPrefs));
 
   // Auto-save display preferences with debounce

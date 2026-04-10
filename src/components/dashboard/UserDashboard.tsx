@@ -153,7 +153,7 @@ const UserDashboard = ({ hideHeader = false }: UserDashboardProps) => {
     };
     
     // Try multiple times with increasing delays to handle slow layouts
-    const timeoutIds: NodeJS.Timeout[] = [];
+    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
     const retryWithDelay = (attempt: number) => {
       if (attempt >= 5) return;
       const delay = attempt * 50; // 0, 50, 100, 150, 200ms

@@ -91,7 +91,7 @@ export const AssignOwnerModal = ({
     try {
       const { error } = await supabase
         .from(entityType)
-        .update({ [ownerField]: selectedUserId })
+        .update({ [ownerField]: selectedUserId } as any)
         .in('id', selectedIds);
 
       if (error) throw error;

@@ -114,7 +114,7 @@ export const EntityEmailHistory = ({ entityType, entityId }: EntityEmailHistoryP
     try {
       let query = supabase
         .from('email_history')
-        .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, open_count, unique_opens, bounce_type, bounce_reason, bounced_at, is_valid_open, reply_count, replied_at, last_reply_at, lead_id, contact_id, account_id, thread_id, parent_email_id, is_reply, message_id, conversation_id, sent_by')
+        .select('id, subject, recipient_email, recipient_name, sender_email, body, status, sent_at, opened_at, open_count, unique_opens, bounce_type, bounce_reason, bounced_at, is_valid_open, reply_count, replied_at, last_reply_at, lead_id, contact_id, account_id, thread_id, parent_email_id, is_reply, message_id, sent_by')
         .order('sent_at', { ascending: false });
 
       if (entityType === 'contact') {

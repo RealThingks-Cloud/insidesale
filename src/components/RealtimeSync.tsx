@@ -27,7 +27,7 @@ export const RealtimeSync = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const pendingInvalidations = useRef<Set<string>>(new Set());
-  const throttleTimer = useRef<NodeJS.Timeout | null>(null);
+  const throttleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!user) return;

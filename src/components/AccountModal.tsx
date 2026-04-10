@@ -97,7 +97,7 @@ export const AccountModal = ({ open, onOpenChange, account, onSuccess, onCreated
   // Debounced duplicate check
   const debouncedCheckDuplicates = useCallback(
     (() => {
-      let timeoutId: NodeJS.Timeout;
+      let timeoutId: ReturnType<typeof setTimeout>;
       return (name: string, email?: string) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
