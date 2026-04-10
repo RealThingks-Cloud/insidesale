@@ -539,6 +539,7 @@ export type Database = {
           modified_time: string | null
           phone_no: string | null
           position: string | null
+          region: string | null
           segment: string | null
           tags: string[] | null
           updated_at: string | null
@@ -566,6 +567,7 @@ export type Database = {
           modified_time?: string | null
           phone_no?: string | null
           position?: string | null
+          region?: string | null
           segment?: string | null
           tags?: string[] | null
           updated_at?: string | null
@@ -593,6 +595,7 @@ export type Database = {
           modified_time?: string | null
           phone_no?: string | null
           position?: string | null
+          region?: string | null
           segment?: string | null
           tags?: string[] | null
           updated_at?: string | null
@@ -657,6 +660,7 @@ export type Database = {
         Row: {
           card_order: string[] | null
           created_at: string | null
+          dashboard_view: string | null
           id: string
           layout_view: string | null
           updated_at: string | null
@@ -667,6 +671,7 @@ export type Database = {
         Insert: {
           card_order?: string[] | null
           created_at?: string | null
+          dashboard_view?: string | null
           id?: string
           layout_view?: string | null
           updated_at?: string | null
@@ -677,6 +682,7 @@ export type Database = {
         Update: {
           card_order?: string[] | null
           created_at?: string | null
+          dashboard_view?: string | null
           id?: string
           layout_view?: string | null
           updated_at?: string | null
@@ -1007,6 +1013,7 @@ export type Database = {
           delivered_at: string | null
           first_open_ip: string | null
           id: string
+          is_reply: boolean | null
           is_valid_open: boolean | null
           last_reply_at: string | null
           lead_id: string | null
@@ -1039,6 +1046,7 @@ export type Database = {
           delivered_at?: string | null
           first_open_ip?: string | null
           id?: string
+          is_reply?: boolean | null
           is_valid_open?: boolean | null
           last_reply_at?: string | null
           lead_id?: string | null
@@ -1071,6 +1079,7 @@ export type Database = {
           delivered_at?: string | null
           first_open_ip?: string | null
           id?: string
+          is_reply?: boolean | null
           is_valid_open?: boolean | null
           last_reply_at?: string | null
           lead_id?: string | null
@@ -1344,6 +1353,7 @@ export type Database = {
           id: string
           industry: string | null
           interest: string | null
+          last_contacted_at: string | null
           lead_name: string
           lead_status: string | null
           linkedin: string | null
@@ -1372,6 +1382,7 @@ export type Database = {
           id?: string
           industry?: string | null
           interest?: string | null
+          last_contacted_at?: string | null
           lead_name: string
           lead_status?: string | null
           linkedin?: string | null
@@ -1400,6 +1411,7 @@ export type Database = {
           id?: string
           industry?: string | null
           interest?: string | null
+          last_contacted_at?: string | null
           lead_name?: string
           lead_status?: string | null
           linkedin?: string | null
