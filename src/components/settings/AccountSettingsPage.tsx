@@ -31,6 +31,7 @@ interface NotificationPrefs {
   leads_notifications: boolean;
   contacts_notifications: boolean;
   accounts_notifications: boolean;
+  daily_reminder_time: string;
 }
 
 interface DisplayPrefs {
@@ -73,7 +74,8 @@ const AccountSettingsPage = () => {
     notification_frequency: 'instant',
     leads_notifications: true,
     contacts_notifications: true,
-    accounts_notifications: true
+    accounts_notifications: true,
+    daily_reminder_time: '07:00'
   });
 
   const [displayPrefs, setDisplayPrefs] = useState<DisplayPrefs>({
@@ -116,8 +118,14 @@ const AccountSettingsPage = () => {
         .eq('id', user.id)
         .single();
 
+      // Prefer auth display name if profile full_name looks like an email
+      const profileName = profileData?.full_name;
+      const authName = user.user_metadata?.full_name;
+      const isEmailLikeName = profileName && profileName.includes('@');
+      const resolvedName = (isEmailLikeName ? authName : profileName) || authName || '';
+
       const loadedProfile: ProfileData = {
-        full_name: profileData?.full_name || user.user_metadata?.full_name || '',
+        full_name: resolvedName,
         email: profileData?.['Email ID'] || user.email || '',
         phone: profileData?.phone || '',
         timezone: profileData?.timezone || 'Asia/Kolkata',
@@ -143,7 +151,8 @@ const AccountSettingsPage = () => {
         notification_frequency: notifData?.notification_frequency ?? 'instant',
         leads_notifications: notifData?.leads_notifications ?? true,
         contacts_notifications: notifData?.contacts_notifications ?? true,
-        accounts_notifications: notifData?.accounts_notifications ?? true
+        accounts_notifications: notifData?.accounts_notifications ?? true,
+        daily_reminder_time: (notifData as any)?.daily_reminder_time ?? '07:00'
       };
       setNotificationPrefs(loadedNotifPrefs);
 
@@ -256,6 +265,7 @@ const AccountSettingsPage = () => {
             notificationPrefs={notificationPrefs}
             setNotificationPrefs={setNotificationPrefs}
             userId={user?.id || ''}
+            userTimezone={profile.timezone}
           />
         </TabsContent>
       </Tabs>

@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, User, Users } from "lucide-react";
+import { Shield, User } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSecurityAudit } from "@/hooks/useSecurityAudit";
 
 interface User {
   id: string;
@@ -31,6 +31,7 @@ const ChangeRoleModal = ({ open, onClose, user, onSuccess }: ChangeRoleModalProp
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
+  const { logSecurityEvent } = useSecurityAudit();
 
   useEffect(() => {
     if (user) {
@@ -72,6 +73,12 @@ const ChangeRoleModal = ({ open, onClose, user, onSuccess }: ChangeRoleModalProp
       if (error) throw error;
 
       if (data?.success) {
+        logSecurityEvent('ROLE_CHANGE', 'user_roles', user.id, {
+          email: user.email,
+          old_role: user.role || 'user',
+          new_role: selectedRole
+        });
+        
         toast({
           title: "Success",
           description: `User role updated to ${selectedRole}`,
@@ -165,12 +172,6 @@ const ChangeRoleModal = ({ open, onClose, user, onSuccess }: ChangeRoleModalProp
                     User
                   </div>
                 </SelectItem>
-                <SelectItem value="manager">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Manager
-                  </div>
-                </SelectItem>
                 <SelectItem value="admin">
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
@@ -184,7 +185,7 @@ const ChangeRoleModal = ({ open, onClose, user, onSuccess }: ChangeRoleModalProp
           <div className="bg-muted p-3 rounded-md">
             <h4 className="font-medium mb-2 flex items-center gap-2">
               {getRoleIcon(selectedRole)}
-              {selectedRole === 'admin' ? 'Admin' : selectedRole === 'manager' ? 'Manager' : 'User'} Permissions
+              {selectedRole === 'admin' ? 'Admin' : 'User'} Permissions
             </h4>
             <ul className="text-sm text-muted-foreground space-y-1">
               {selectedRole === 'admin' ? (
@@ -193,13 +194,6 @@ const ChangeRoleModal = ({ open, onClose, user, onSuccess }: ChangeRoleModalProp
                   <li>• Can manage users and settings</li>
                   <li>• Can update and delete all records</li>
                   <li>• Access to audit logs</li>
-                </>
-              ) : selectedRole === 'manager' ? (
-                <>
-                  <li>• Can manage users and settings</li>
-                  <li>• Can update and delete all records</li>
-                  <li>• Access to audit logs</li>
-                  <li>• User management access</li>
                 </>
               ) : (
                 <>

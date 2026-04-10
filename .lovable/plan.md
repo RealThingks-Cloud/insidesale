@@ -1,49 +1,36 @@
 
 
-# Fix Plan: Empty Database Causing 50+ Build Errors
+## Plan: Fix Account Column Still Showing "—" in Reminder Email
 
-## Problem
-The project was just connected to a **new empty Supabase project** ("Demo CRM") that has **zero tables**. The `types.ts` reflects this empty schema, so every `supabase.from('tablename')` call in the codebase resolves to type `never`, causing 50+ TypeScript errors. Additionally, 10 files use `NodeJS.Timeout` which isn't valid in browser TypeScript.
+### Root Cause
 
-## Root Cause
-The code references **22 tables** that don't exist yet:
-`accounts`, `contacts`, `leads`, `deals`, `meetings`, `profiles`, `tasks`, `notifications`, `user_roles`, `email_history`, `email_replies`, `lead_statuses`, `pipeline_stages`, `keep_alive`, `backups`, `contact_activities`, `meeting_follow_ups`, `security_audit_log`, `user_sessions`, `yearly_revenue_targets`, `announcements`, `announcement_dismissals`
+The data confirms all 3 existing deals have `customer_name` populated (Scania Group, Stellantis, Hanon). Hanon resolves correctly but the other two show "—". Since the logic is identical for all three, this strongly suggests the **deployed edge function is running stale code** — likely the version before the `customer_name` fix, where it relied on `account_id` (which is null).
 
-There are **93 existing migration files** in `supabase/migrations/` that were created for a previous Supabase project. These migrations contain all the table definitions the code needs.
+The fact that "Hanon" works might be a coincidence if Hanon's deal has `account_id` populated or if the account name matches via a different path.
 
-## Fix Plan
+### Fix
 
-### Phase 1: Run All Existing Migrations
-The 93 migration files already contain the complete schema. We need to execute them against the new "Demo CRM" database. This will create all 22+ tables, RLS policies, triggers, and functions the code expects.
+1. **Add debug logging** to the account resolution block so we can verify what's happening at runtime
+2. **Redeploy** the edge function to ensure the latest code with `customer_name` resolution is active
+3. **Send a test email** to verify
 
-We'll consolidate the key table-creation SQL from the existing migrations into a single new migration to apply to this fresh database. This avoids issues with migrations that reference columns/tables from prior migrations in a specific order.
+### Changes in `supabase/functions/daily-action-reminders/index.ts`
 
-### Phase 2: Fix NodeJS.Timeout (10 files)
-Replace `NodeJS.Timeout` with `ReturnType<typeof setTimeout>` in:
-- `AccountModal.tsx`
-- `ContactModal.tsx`
-- `LeadModal.tsx`
-- `RealtimeSync.tsx`
-- `BounceCheckWorker.tsx`
-- `DisplayPreferencesSection.tsx`
-- `ProfileSection.tsx`
-- `NotificationsSection.tsx`
-- `UserDashboard.tsx`
-- `CronJobMonitoring.tsx`
+Add console.log statements after the deals fetch and account map build:
 
-### Phase 3: Regenerate Supabase Types
-After the migration runs, the types will be automatically regenerated to reflect all 22+ tables, resolving every `'tablename' is not assignable to parameter of type 'never'` error.
+```typescript
+// After line 411 (after deals fetch loop)
+console.log(`[DEBUG] dealModuleIds: ${JSON.stringify(dealModuleIds)}`);
+console.log(`[DEBUG] dealAccountMap: ${JSON.stringify([...dealAccountMap.entries()])}`);
 
-## Summary of Changes
+// After line 441 (after final accountMap build)
+console.log(`[DEBUG] accountMap: ${JSON.stringify([...accountMap.entries()])}`);
+```
 
-| Action | Details |
-|--------|---------|
-| **1 database migration** | Create all required tables (accounts, contacts, leads, deals, meetings, profiles, tasks, notifications, etc.) with columns, RLS policies, triggers, and functions |
-| **10 code files** | Replace `NodeJS.Timeout` → `ReturnType<typeof setTimeout>` |
-| **Auto-regenerated** | `src/integrations/supabase/types.ts` will update after migration |
+Then redeploy and send test email. If the account names still show "—", the logs will tell us exactly where the resolution fails.
 
-## Risk Assessment
-- Migration is additive only (empty database) — no data loss risk
-- `NodeJS.Timeout` fix is a safe type-only change with identical runtime behavior
-- Existing migration files serve as the authoritative schema reference
+### Files
+| File | Change |
+|------|--------|
+| `supabase/functions/daily-action-reminders/index.ts` | Add debug logging to account resolution, then redeploy |
 
