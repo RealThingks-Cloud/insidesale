@@ -28,7 +28,7 @@ const DisplayPreferencesSection = ({
   setTheme,
   userId 
 }: DisplayPreferencesSectionProps) => {
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>(JSON.stringify(displayPrefs));
 
   // Auto-save with debounce

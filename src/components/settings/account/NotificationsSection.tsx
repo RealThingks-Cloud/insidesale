@@ -28,7 +28,7 @@ interface NotificationsSectionProps {
 }
 
 const NotificationsSection = ({ notificationPrefs, setNotificationPrefs, userId }: NotificationsSectionProps) => {
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>(JSON.stringify(notificationPrefs));
   const isInitialMount = useRef(true);
 

@@ -100,7 +100,7 @@ export const LeadModal = ({ open, onOpenChange, lead, onSuccess }: LeadModalProp
   // Debounced duplicate check
   const debouncedCheckDuplicates = useCallback(
     (() => {
-      let timeoutId: NodeJS.Timeout;
+      let timeoutId: ReturnType<typeof setTimeout>;
       return (name: string, email?: string) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {

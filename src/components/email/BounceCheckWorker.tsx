@@ -13,7 +13,7 @@ const MIN_TIME_BETWEEN_CHECKS_MS = 2 * 60 * 1000; // 2 minutes minimum between c
  */
 export const BounceCheckWorker = () => {
   const { user } = useAuth();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRunningRef = useRef(false);
 
   const runBounceCheck = useCallback(async () => {

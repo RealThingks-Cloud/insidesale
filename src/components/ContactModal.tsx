@@ -134,7 +134,7 @@ export const ContactModal = ({ open, onOpenChange, contact, onSuccess }: Contact
   // Debounced duplicate check
   const debouncedCheckDuplicates = useCallback(
     (() => {
-      let timeoutId: NodeJS.Timeout;
+      let timeoutId: ReturnType<typeof setTimeout>;
       return (name: string, email?: string) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
