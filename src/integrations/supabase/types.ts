@@ -539,6 +539,7 @@ export type Database = {
           modified_time: string | null
           phone_no: string | null
           position: string | null
+          segment: string | null
           tags: string[] | null
           updated_at: string | null
           website: string | null
@@ -565,6 +566,7 @@ export type Database = {
           modified_time?: string | null
           phone_no?: string | null
           position?: string | null
+          segment?: string | null
           tags?: string[] | null
           updated_at?: string | null
           website?: string | null
@@ -591,6 +593,7 @@ export type Database = {
           modified_time?: string | null
           phone_no?: string | null
           position?: string | null
+          segment?: string | null
           tags?: string[] | null
           updated_at?: string | null
           website?: string | null
@@ -659,6 +662,7 @@ export type Database = {
           updated_at: string | null
           user_id: string
           visible_widgets: string[] | null
+          widget_layouts: Json | null
         }
         Insert: {
           card_order?: string[] | null
@@ -668,6 +672,7 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           visible_widgets?: string[] | null
+          widget_layouts?: Json | null
         }
         Update: {
           card_order?: string[] | null
@@ -677,6 +682,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           visible_widgets?: string[] | null
+          widget_layouts?: Json | null
         }
         Relationships: []
       }
@@ -1007,6 +1013,7 @@ export type Database = {
           message_id: string | null
           open_count: number | null
           opened_at: string | null
+          parent_email_id: string | null
           recipient_email: string
           recipient_name: string | null
           replied_at: string | null
@@ -1038,6 +1045,7 @@ export type Database = {
           message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
+          parent_email_id?: string | null
           recipient_email: string
           recipient_name?: string | null
           replied_at?: string | null
@@ -1069,6 +1077,7 @@ export type Database = {
           message_id?: string | null
           open_count?: number | null
           opened_at?: string | null
+          parent_email_id?: string | null
           recipient_email?: string
           recipient_name?: string | null
           replied_at?: string | null
@@ -1631,13 +1640,17 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
+          accounts_notifications: boolean | null
+          contacts_notifications: boolean | null
           created_at: string
           deal_updates: boolean | null
           email_notifications: boolean | null
           id: string
           in_app_notifications: boolean | null
           lead_assigned: boolean | null
+          leads_notifications: boolean | null
           meeting_reminders: boolean | null
+          notification_frequency: string | null
           push_notifications: boolean | null
           task_reminders: boolean | null
           updated_at: string
@@ -1645,13 +1658,17 @@ export type Database = {
           weekly_digest: boolean | null
         }
         Insert: {
+          accounts_notifications?: boolean | null
+          contacts_notifications?: boolean | null
           created_at?: string
           deal_updates?: boolean | null
           email_notifications?: boolean | null
           id?: string
           in_app_notifications?: boolean | null
           lead_assigned?: boolean | null
+          leads_notifications?: boolean | null
           meeting_reminders?: boolean | null
+          notification_frequency?: string | null
           push_notifications?: boolean | null
           task_reminders?: boolean | null
           updated_at?: string
@@ -1659,13 +1676,17 @@ export type Database = {
           weekly_digest?: boolean | null
         }
         Update: {
+          accounts_notifications?: boolean | null
+          contacts_notifications?: boolean | null
           created_at?: string
           deal_updates?: boolean | null
           email_notifications?: boolean | null
           id?: string
           in_app_notifications?: boolean | null
           lead_assigned?: boolean | null
+          leads_notifications?: boolean | null
           meeting_reminders?: boolean | null
+          notification_frequency?: string | null
           push_notifications?: boolean | null
           task_reminders?: boolean | null
           updated_at?: string
