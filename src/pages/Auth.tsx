@@ -143,13 +143,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
-      <Card className="w-full max-w-md shadow-2xl border-0">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[hsl(220,40%,13%)] via-[hsl(220,35%,20%)] to-[hsl(215,30%,28%)]">
+      <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur-sm">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold text-[hsl(210,60%,40%)]" style={{ fontStyle: 'italic' }}>
             RealThingks CRM
           </CardTitle>
-          <p className="text-sm text-foreground/70">Sign in to your account</p>
+          <p className="text-sm text-muted-foreground">Sign in to your account</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-4">
