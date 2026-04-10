@@ -60,7 +60,7 @@ export const PermissionsProvider = ({ children }: PermissionsProviderProps) => {
   const { data: snapshot, isLoading: snapshotLoading } = useQuery({
     queryKey: ['access-snapshot', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_my_access_snapshot');
+      const { data, error } = await supabase.rpc('get_my_access_snapshot' as any);
       
       if (error) {
         console.error('Error fetching access snapshot:', error);
@@ -74,7 +74,7 @@ export const PermissionsProvider = ({ children }: PermissionsProviderProps) => {
       }
 
       // RPC returns an array with one row
-      const result = data?.[0];
+      const result = (data as any)?.[0];
       if (!result) {
         return {
           role: 'user',

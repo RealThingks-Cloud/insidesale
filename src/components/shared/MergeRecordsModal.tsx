@@ -201,7 +201,7 @@ export const MergeRecordsModal = ({
         .update({
           ...mergedData,
           modified_time: new Date().toISOString(),
-        })
+        } as any)
         .eq("id", targetId);
 
       if (updateError) throw updateError;
