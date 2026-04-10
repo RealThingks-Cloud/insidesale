@@ -650,6 +650,36 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_preferences: {
+        Row: {
+          card_order: string[] | null
+          created_at: string | null
+          id: string
+          layout_view: string | null
+          updated_at: string | null
+          user_id: string
+          visible_widgets: string[] | null
+        }
+        Insert: {
+          card_order?: string[] | null
+          created_at?: string | null
+          id?: string
+          layout_view?: string | null
+          updated_at?: string | null
+          user_id: string
+          visible_widgets?: string[] | null
+        }
+        Update: {
+          card_order?: string[] | null
+          created_at?: string | null
+          id?: string
+          layout_view?: string | null
+          updated_at?: string | null
+          user_id?: string
+          visible_widgets?: string[] | null
+        }
+        Relationships: []
+      }
       deal_action_items: {
         Row: {
           assigned_to: string | null
@@ -1295,9 +1325,11 @@ export type Database = {
           company_name: string | null
           contact_owner: string | null
           contact_source: string | null
+          converted_from_contact_id: string | null
           country: string | null
           created_at: string | null
           created_by: string | null
+          created_time: string | null
           description: string | null
           email: string | null
           id: string
@@ -1321,9 +1353,11 @@ export type Database = {
           company_name?: string | null
           contact_owner?: string | null
           contact_source?: string | null
+          converted_from_contact_id?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_time?: string | null
           description?: string | null
           email?: string | null
           id?: string
@@ -1347,9 +1381,11 @@ export type Database = {
           company_name?: string | null
           contact_owner?: string | null
           contact_source?: string | null
+          converted_from_contact_id?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_time?: string | null
           description?: string | null
           email?: string | null
           id?: string
@@ -1373,6 +1409,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_converted_from_contact_id_fkey"
+            columns: ["converted_from_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -1509,6 +1552,7 @@ export type Database = {
       }
       meetings: {
         Row: {
+          account_id: string | null
           attendees: Json | null
           contact_id: string | null
           created_at: string
@@ -1526,6 +1570,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           attendees?: Json | null
           contact_id?: string | null
           created_at?: string
@@ -1543,6 +1588,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           attendees?: Json | null
           contact_id?: string | null
           created_at?: string
@@ -1560,6 +1606,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "meetings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "meetings_contact_id_fkey"
             columns: ["contact_id"]
