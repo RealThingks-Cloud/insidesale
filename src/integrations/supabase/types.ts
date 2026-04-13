@@ -347,6 +347,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          linkedin_status: string | null
           stage: string | null
         }
         Insert: {
@@ -356,6 +357,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          linkedin_status?: string | null
           stage?: string | null
         }
         Update: {
@@ -365,6 +367,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          linkedin_status?: string | null
           stage?: string | null
         }
         Relationships: [
@@ -430,6 +433,47 @@ export type Database = {
             foreignKeyName: "campaign_email_templates_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_mart: {
+        Row: {
+          audience_done: boolean
+          campaign_id: string
+          created_at: string
+          message_done: boolean
+          region_done: boolean
+          timing_done: boolean
+          timing_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          audience_done?: boolean
+          campaign_id: string
+          created_at?: string
+          message_done?: boolean
+          region_done?: boolean
+          timing_done?: boolean
+          timing_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audience_done?: boolean
+          campaign_id?: string
+          created_at?: string
+          message_done?: boolean
+          region_done?: boolean
+          timing_done?: boolean
+          timing_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_mart_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: true
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -557,6 +601,7 @@ export type Database = {
           end_date: string | null
           goal: string | null
           id: string
+          mart_complete: boolean
           message_strategy: string | null
           modified_at: string | null
           modified_by: string | null
@@ -579,6 +624,7 @@ export type Database = {
           end_date?: string | null
           goal?: string | null
           id?: string
+          mart_complete?: boolean
           message_strategy?: string | null
           modified_at?: string | null
           modified_by?: string | null
@@ -601,6 +647,7 @@ export type Database = {
           end_date?: string | null
           goal?: string | null
           id?: string
+          mart_complete?: boolean
           message_strategy?: string | null
           modified_at?: string | null
           modified_by?: string | null

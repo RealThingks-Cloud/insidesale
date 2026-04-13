@@ -128,7 +128,7 @@ export default function ActionItems() {
   }, [highlightId]);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const hasActiveFilters = filters.module_type !== 'all' || filters.priority !== 'all' || filters.status !== 'all' || filters.assigned_to !== 'all' || filters.search !== '';
+  const hasActiveFilters = filters.module_type !== 'all' || filters.priority !== 'all' || filters.status !== 'all' || filters.assigned_to !== 'all' || filters.search !== '' || (filters as any).campaign_filter !== undefined;
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -293,6 +293,20 @@ export default function ActionItems() {
             <Input placeholder="Search action items..." value={filters.search} onChange={e => updateFilter('search', e.target.value)} className="pl-9" />
           </div>
 
+
+          {/* Module Type Filter */}
+          <Select value={filters.module_type} onValueChange={value => updateFilter('module_type', value)}>
+            <SelectTrigger className="w-auto min-w-[100px] [&>svg]:hidden">
+              <SelectValue placeholder="Module" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Modules</SelectItem>
+              <SelectItem value="accounts">Accounts</SelectItem>
+              <SelectItem value="contacts">Contacts</SelectItem>
+              <SelectItem value="deals">Deals</SelectItem>
+              <SelectItem value="campaigns">Campaigns</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Priority Filter */}
           <Select value={filters.priority} onValueChange={value => updateFilter('priority', value)}>

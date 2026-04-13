@@ -7,7 +7,7 @@ import { useCRUDAudit } from '@/hooks/useCRUDAudit';
 
 export type ActionItemPriority = 'Low' | 'Medium' | 'High';
 export type ActionItemStatus = 'Open' | 'In Progress' | 'Completed' | 'Cancelled';
-export type ModuleType = 'accounts' | 'contacts' | 'deals';
+export type ModuleType = 'accounts' | 'contacts' | 'deals' | 'campaigns';
 
 export interface ActionItem {
   id: string;
